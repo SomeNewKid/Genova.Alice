@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<aiml version="1.0">
+  <!-- neutral UDC if you want it -->
+  <category>
+    <pattern>*</pattern>
+    <template>I'm not sure I understood that.</template>
+  </category>
+
+  <!-- clock -->
+  <category>
+    <pattern>WHAT TIME IS IT</pattern>
+    <template>The time is <date format="HH:mm"/>.</template>
+  </category>
+  <category>
+    <pattern>WHAT IS THE TIME</pattern>
+    <template>The time is <date format="HH:mm"/>.</template>
+  </category>
+
+  <!-- date -->
+  <category>
+    <pattern>WHAT IS THE DATE</pattern>
+    <template>Today is <date format="yyyy-MM-dd"/>.</template>
+  </category>
+  <category>
+    <pattern>WHAT DATE IS IT</pattern>
+    <template>Today is <date format="yyyy-MM-dd"/>.</template>
+  </category>
+</aiml>
