@@ -1,47 +1,25 @@
-﻿// =============================================================
-// Genova.Alice.Tests — Part 4 (Step 2: TDD)
-// Unit tests for AimlLoader + AimlReaderListener (xUnit + FluentAssertions)
-// Notes:
-// - Assumes InternalsVisibleTo("Genova.Alice.Tests") in main assembly.
-// - Uses PreProcessor for normalization checks.
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using FluentAssertions;
-using Xunit;
-using Genova.Alice;
 
-namespace Genova.Alice.Tests;
+namespace Genova.Alice.UnitTests;
 
-internal sealed class CapturingListener : IAimlReaderListener
-{
-    internal sealed record Item(string Pattern, string That, string Topic, string TemplateXml, string? Source);
-
-    internal List<Item> Items { get; } = new();
-
-    public void OnCategory(string pattern, string that, string topic, string templateXml, string? sourceName = null)
-    {
-        Items.Add(new Item(pattern, that, topic, templateXml, sourceName));
-    }
-}
-
-public class AimlLoaderTests
+public class AimlLoader_Tests
 {
     private static (AimlLoader loader, CapturingListener listener, PreProcessor pre) Make()
     {
-        var pre = new PreProcessor(SubstitutionTables.CreateClassicDefaults());
-        var listener = new CapturingListener();
-        var loader = new AimlLoader(pre, listener);
+        PreProcessor pre = new (SubstitutionTables.CreateClassicDefaults());
+        CapturingListener listener = new ();
+        AimlLoader loader = new (pre, listener);
         return (loader, listener, pre);
     }
 
     [Fact]
     public void LoadFromString_emits_single_root_category_without_that_or_topic()
     {
-        var (loader, listener, _) = Make();
+        (AimlLoader loader, CapturingListener listener, PreProcessor _) = Make();
 
         const string xml = """
         <aiml version="1.0.1">
@@ -55,7 +33,7 @@ public class AimlLoaderTests
         loader.LoadFromString(xml, sourceName: "memory://one.aiml");
 
         listener.Items.Should().HaveCount(1);
-        var item = listener.Items[0];
+        CapturingListener.Item item = listener.Items[0];
 
         item.Pattern.Should().Be("HELLO");
         item.That.Should().Be("*");           // no <that> provided -> "*"
@@ -67,7 +45,7 @@ public class AimlLoaderTests
     [Fact]
     public void Loader_handles_topic_wrapper_and_that_element()
     {
-        var (loader, listener, _) = Make();
+        (AimlLoader loader, CapturingListener listener, PreProcessor _) = Make();
 
         const string xml = """
         <aiml>
@@ -86,7 +64,7 @@ public class AimlLoaderTests
         loader.LoadFromString(xml, sourceName: "memory://jokes.aiml");
 
         listener.Items.Should().HaveCount(1);
-        var item = listener.Items[0];
+        CapturingListener.Item item = listener.Items[0];
 
         item.Pattern.Should().Be("TELL ME A JOKE");
         item.That.Should().Be("OK");
@@ -98,7 +76,7 @@ public class AimlLoaderTests
     [Fact]
     public void Normalization_applies_when_enabled()
     {
-        var (loader, listener, pre) = Make();
+        (AimlLoader loader, CapturingListener listener, PreProcessor pre) = Make();
 
         // Pattern contains punctuation and lower-case; should be normalized by loader
         const string xml = """
@@ -113,7 +91,7 @@ public class AimlLoaderTests
         loader.LoadFromString(xml, sourceName: "memory://norm.aiml", normalize: true);
 
         listener.Items.Should().HaveCount(1);
-        var item = listener.Items[0];
+        CapturingListener.Item item = listener.Items[0];
 
         // Expect PreProcessor.NormalizePattern behavior
         item.Pattern.Should().Be(pre.NormalizePattern("What is your name?"));
@@ -124,7 +102,7 @@ public class AimlLoaderTests
     [Fact]
     public void Multiple_categories_across_root_and_topics_are_all_emitted()
     {
-        var (loader, listener, _) = Make();
+        (AimlLoader loader, CapturingListener listener, PreProcessor _) = Make();
 
         const string xml = """
         <aiml>
@@ -165,7 +143,7 @@ public class AimlLoaderTests
     [Fact]
     public void LoadFromStream_behaves_like_LoadFromString()
     {
-        var (loader, listener, _) = Make();
+        (AimlLoader loader, CapturingListener listener, PreProcessor _) = Make();
 
         const string xml = """
         <aiml>
@@ -176,12 +154,24 @@ public class AimlLoaderTests
         </aiml>
         """;
 
-        using var ms = new MemoryStream(Encoding.UTF8.GetBytes(xml));
+        using MemoryStream ms = new (Encoding.UTF8.GetBytes(xml));
         loader.LoadFromStream(ms, sourceName: "memory://stream.aiml");
 
         listener.Items.Should().HaveCount(1);
         listener.Items[0].Pattern.Should().Be("BYE");
         listener.Items[0].TemplateXml.Should().Contain("Goodbye.");
         listener.Items[0].Source.Should().Be("memory://stream.aiml");
+    }
+}
+
+internal sealed class CapturingListener : IAimlReaderListener
+{
+    internal sealed record Item(string Pattern, string That, string Topic, string TemplateXml, string? Source);
+
+    internal List<Item> Items { get; } = [];
+
+    public void OnCategory(string pattern, string that, string topic, string templateXml, string? sourceName = null)
+    {
+        Items.Add(new Item(pattern, that, topic, templateXml, sourceName));
     }
 }

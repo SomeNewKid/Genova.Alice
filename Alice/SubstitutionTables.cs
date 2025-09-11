@@ -1,18 +1,5 @@
-﻿// =============================================================
-// Genova.Alice.Core — Part 1 (Step 3: Implementations)
-// Follows Program D v4.1.5 behavior where applicable for preprocessing.
-// - All types/members are internal
-// - Case-insensitive maps via StringComparer.OrdinalIgnoreCase
-// - Uppercasing + punctuation-to-space (preserve '*' and '_')
-// - Word-level Normal substitutions
-// - Whitespace collapse
-// - Basic sentence splitting on . ! ?  (trimmed, non-empty)
-// =============================================================
-
-using System;
-using System.Collections.Generic;
-using System.Globalization;
-using System.Text;
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
 namespace Genova.Alice;
 
@@ -22,11 +9,14 @@ namespace Genova.Alice;
 /// </summary>
 internal sealed class SubstitutionTables
 {
-    internal Dictionary<string, string> Normal { get; }
-    internal Dictionary<string, string> Person { get; }
-    internal Dictionary<string, string> Person2 { get; }
-    internal Dictionary<string, string> Gender { get; }
-
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SubstitutionTables"/> class,
+    /// defensively copying the provided maps into case-insensitive dictionaries.
+    /// </summary>
+    /// <param name="normal">Optional “Normal” substitutions.</param>
+    /// <param name="person">Optional first→second person substitutions.</param>
+    /// <param name="person2">Optional second→first person substitutions.</param>
+    /// <param name="gender">Optional gender substitutions.</param>
     internal SubstitutionTables(
         Dictionary<string, string>? normal = null,
         Dictionary<string, string>? person = null,
@@ -34,270 +24,246 @@ internal sealed class SubstitutionTables
         Dictionary<string, string>? gender = null)
     {
         // Defensive copies into case-insensitive dictionaries
-        Normal = normal is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                  : new Dictionary<string, string>(normal, StringComparer.OrdinalIgnoreCase);
-        Person = person is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                  : new Dictionary<string, string>(person, StringComparer.OrdinalIgnoreCase);
-        Person2 = person2 is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                  : new Dictionary<string, string>(person2, StringComparer.OrdinalIgnoreCase);
-        Gender = gender is null ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                                  : new Dictionary<string, string>(gender, StringComparer.OrdinalIgnoreCase);
+        Normal = normal is null
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(normal, StringComparer.OrdinalIgnoreCase);
+        Person = person is null
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(person, StringComparer.OrdinalIgnoreCase);
+        Person2 = person2 is null
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(person2, StringComparer.OrdinalIgnoreCase);
+        Gender = gender is null
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    : new Dictionary<string, string>(gender, StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Returns a new instance with empty substitution maps (case-insensitive).
+    /// Gets the “Normal” substitutions (e.g., contractions → expanded forms).
     /// </summary>
+    internal Dictionary<string, string> Normal { get; }
+
+    /// <summary>
+    /// Gets the first→second person substitutions used by &lt;person&gt;.
+    /// </summary>
+    internal Dictionary<string, string> Person { get; }
+
+    /// <summary>
+    /// Gets the second→first person substitutions used by &lt;person2&gt;.
+    /// </summary>
+    internal Dictionary<string, string> Person2 { get; }
+
+    /// <summary>
+    /// Gets the gender substitutions used by &lt;gender&gt;.
+    /// </summary>
+    internal Dictionary<string, string> Gender { get; }
+
+    /// <summary>
+    /// Creates an instance with empty, case-insensitive substitution maps.
+    /// </summary>
+    /// <returns>
+    /// A new <see cref="SubstitutionTables"/> whose <see cref="Normal"/>,
+    /// <see cref="Person"/>, <see cref="Person2"/>, and <see cref="Gender"/>
+    /// dictionaries are all empty and use <see cref="StringComparer.OrdinalIgnoreCase"/>.
+    /// </returns>
     internal static SubstitutionTables CreateEmpty()
     {
         return new SubstitutionTables();
     }
 
     /// <summary>
-    /// Returns a new instance seeded with classic ALICE-style defaults (minimal set).
-    /// This is intentionally small; the full reduction tables are integrated later.
+    /// Creates an instance seeded with a minimal set of classic ALICE-style defaults.
     /// </summary>
+    /// <returns>
+    /// A new <see cref="SubstitutionTables"/> populated with a small, uppercase-key
+    /// default set for <see cref="Normal"/> (e.g., contractions → expanded forms),
+    /// <see cref="Person"/> (first→second person), <see cref="Person2"/> (second→first person),
+    /// and <see cref="Gender"/> (masculine↔feminine). Suitable for demos/tests; the
+    /// <see cref="PreProcessor"/> uppercases input before applying these mappings.
+    /// </returns>
     internal static SubstitutionTables CreateClassicDefaults()
     {
-        var t = CreateEmpty();
+        SubstitutionTables t = CreateEmpty();
+
+        Dictionary<string, string> normal = t.Normal;
+        Dictionary<string, string> person = t.Person;
+        Dictionary<string, string> person2 = t.Person2;
+        Dictionary<string, string> gender = t.Gender;
 
         // Normal (contractions → expanded). Store as UPPERCASE for consistency;
         // PreProcessor uppercases before applying.
-        t.Normal["I'M"] = "I AM";
-        t.Normal["YOU'RE"] = "YOU ARE";
-        t.Normal["CAN'T"] = "CANNOT";
-        t.Normal["WON'T"] = "WILL NOT";
-        t.Normal["AREN'T"] = "ARE NOT";
-        t.Normal["ISN'T"] = "IS NOT";
+        normal["I'M"] = "I AM";
+        normal["YOU'RE"] = "YOU ARE";
+        normal["CAN'T"] = "CANNOT";
+        normal["WON'T"] = "WILL NOT";
+        normal["AREN'T"] = "ARE NOT";
+        normal["ISN'T"] = "IS NOT";
 
         // Person: first → second person (subset sufficient for demos/tests)
-        t.Person["I"] = "YOU";
-        t.Person["ME"] = "YOU";
-        t.Person["MY"] = "YOUR";
-        t.Person["MINE"] = "YOURS";
-        t.Person["MYSELF"] = "YOURSELF";
-        t.Person["AM"] = "ARE";
+        person["I"] = "YOU";
+        person["ME"] = "YOU";
+        person["MY"] = "YOUR";
+        person["MINE"] = "YOURS";
+        person["MYSELF"] = "YOURSELF";
+        person["AM"] = "ARE";
 
         // Person2: second → first person
-        t.Person2["YOU"] = "I";
-        t.Person2["YOUR"] = "MY";
-        t.Person2["YOURS"] = "MINE";
-        t.Person2["YOURSELF"] = "MYSELF";
-        t.Person2["ARE"] = "AM";
+        person2["YOU"] = "I";
+        person2["YOUR"] = "MY";
+        person2["YOURS"] = "MINE";
+        person2["YOURSELF"] = "MYSELF";
+        person2["ARE"] = "AM";
 
         // Gender swaps (both directions so ContainsKey("she") passes in tests)
-        t.Gender["HE"] = "SHE";
-        t.Gender["HIM"] = "HER";
-        t.Gender["HIS"] = "HER";
-        t.Gender["HIMSELF"] = "HERSELF";
-        t.Gender["SHE"] = "HE";
-        t.Gender["HER"] = "HIM";
-        t.Gender["HERS"] = "HIS";
-        t.Gender["HERSELF"] = "HIMSELF";
+        gender["HE"] = "SHE";
+        gender["HIM"] = "HER";
+        gender["HIS"] = "HER";
+        gender["HIMSELF"] = "HERSELF";
+        gender["SHE"] = "HE";
+        gender["HER"] = "HIM";
+        gender["HERS"] = "HIS";
+        gender["HERSELF"] = "HIMSELF";
+
+        // Interrogatives ('S → IS)
+        normal["WHAT'S"] = "WHAT IS";
+        normal["WHAT’S"] = "WHAT IS";
+        normal["WHO'S"] = "WHO IS";
+        normal["WHO’S"] = "WHO IS";
+        normal["WHERE'S"] = "WHERE IS";
+        normal["WHERE’S"] = "WHERE IS";
+        normal["WHEN'S"] = "WHEN IS";
+        normal["WHEN’S"] = "WHEN IS";
+        normal["WHY'S"] = "WHY IS";
+        normal["WHY’S"] = "WHY IS";
+        normal["HOW'S"] = "HOW IS";
+        normal["HOW’S"] = "HOW IS";
+        normal["THAT'S"] = "THAT IS";
+        normal["THAT’S"] = "THAT IS";
+        normal["THERE'S"] = "THERE IS";
+        normal["THERE’S"] = "THERE IS";
+        normal["HERE'S"] = "HERE IS";
+        normal["HERE’S"] = "HERE IS";
+
+        // Be (’RE/’S → ARE/IS)
+        normal["I'M"] = "I AM";
+        normal["I’M"] = "I AM";
+        normal["YOU'RE"] = "YOU ARE";
+        normal["YOU’RE"] = "YOU ARE";
+        normal["WE'RE"] = "WE ARE";
+        normal["WE’RE"] = "WE ARE";
+        normal["THEY'RE"] = "THEY ARE";
+        normal["THEY’RE"] = "THEY ARE";
+        normal["HE'S"] = "HE IS";
+        normal["HE’S"] = "HE IS";
+        normal["SHE'S"] = "SHE IS";
+        normal["SHE’S"] = "SHE IS";
+        normal["IT'S"] = "IT IS";
+        normal["IT’S"] = "IT IS";
+
+        // Have (’VE → HAVE)
+        normal["I'VE"] = "I HAVE";
+        normal["I’VE"] = "I HAVE";
+        normal["YOU'VE"] = "YOU HAVE";
+        normal["YOU’VE"] = "YOU HAVE";
+        normal["WE'VE"] = "WE HAVE";
+        normal["WE’VE"] = "WE HAVE";
+        normal["THEY'VE"] = "THEY HAVE";
+        normal["THEY’VE"] = "THEY HAVE";
+
+        // Will (’LL → WILL)
+        normal["I'LL"] = "I WILL";
+        normal["I’LL"] = "I WILL";
+        normal["YOU'LL"] = "YOU WILL";
+        normal["YOU’LL"] = "YOU WILL";
+        normal["HE'LL"] = "HE WILL";
+        normal["HE’LL"] = "HE WILL";
+        normal["SHE'LL"] = "SHE WILL";
+        normal["SHE’LL"] = "SHE WILL";
+        normal["IT'LL"] = "IT WILL";
+        normal["IT’LL"] = "IT WILL";
+        normal["WE'LL"] = "WE WILL";
+        normal["WE’LL"] = "WE WILL";
+        normal["THEY'LL"] = "THEY WILL";
+        normal["THEY’LL"] = "THEY WILL";
+
+        // Would / Had (’D → WOULD) — choose WOULD for matching common AIML phrasing
+        normal["I'D"] = "I WOULD";
+        normal["I’D"] = "I WOULD";
+        normal["YOU'D"] = "YOU WOULD";
+        normal["YOU’D"] = "YOU WOULD";
+        normal["HE'D"] = "HE WOULD";
+        normal["HE’D"] = "HE WOULD";
+        normal["SHE'D"] = "SHE WOULD";
+        normal["SHE’D"] = "SHE WOULD";
+        normal["IT'D"] = "IT WOULD";
+        normal["IT’D"] = "IT WOULD";
+        normal["WE'D"] = "WE WOULD";
+        normal["WE’D"] = "WE WOULD";
+        normal["THEY'D"] = "THEY WOULD";
+        normal["THEY’D"] = "THEY WOULD";
+
+        // Negatives (common)
+        normal["CAN'T"] = "CANNOT";
+        normal["CAN’T"] = "CANNOT";
+        normal["WON'T"] = "WILL NOT";
+        normal["WON’T"] = "WILL NOT";
+        normal["DON'T"] = "DO NOT";
+        normal["DON’T"] = "DO NOT";
+        normal["DOESN'T"] = "DOES NOT";
+        normal["DOESN’T"] = "DOES NOT";
+        normal["DIDN'T"] = "DID NOT";
+        normal["DIDN’T"] = "DID NOT";
+        normal["ISN'T"] = "IS NOT";
+        normal["ISN’T"] = "IS NOT";
+        normal["AREN'T"] = "ARE NOT";
+        normal["AREN’T"] = "ARE NOT";
+        normal["WASN'T"] = "WAS NOT";
+        normal["WASN’T"] = "WAS NOT";
+        normal["WEREN'T"] = "WERE NOT";
+        normal["WEREN’T"] = "WERE NOT";
+        normal["HAVEN'T"] = "HAVE NOT";
+        normal["HAVEN’T"] = "HAVE NOT";
+        normal["HASEN'T"] = "HAS NOT";
+        normal["HASN’T"] = "HAS NOT"; // (typo variant + correct)
+        normal["HASN'T"] = "HAS NOT";
+        normal["HADN'T"] = "HAD NOT";
+        normal["HADN’T"] = "HAD NOT";
+        normal["SHOULDN'T"] = "SHOULD NOT";
+        normal["SHOULDN’T"] = "SHOULD NOT";
+        normal["WOULDN'T"] = "WOULD NOT";
+        normal["WOULDN’T"] = "WOULD NOT";
+        normal["COULDN'T"] = "COULD NOT";
+        normal["COULDN’T"] = "COULD NOT";
+        normal["MUSTN'T"] = "MUST NOT";
+        normal["MUSTN’T"] = "MUST NOT";
+
+        // Colloquialisms / normalizations often found in reductions
+        normal["GONNA"] = "GOING TO";
+        normal["WANNA"] = "WANT TO";
+        normal["GOTTA"] = "HAVE TO";
+        normal["AIN'T"] = "IS NOT";      // occasionally used; maps to IS/ARE NOT in many sets
+        normal["LET'S"] = "LET US";
+        normal["LET’S"] = "LET US";
+        normal["OKAY"] = "OK";
+
+        // Question auxiliaries (help certain paraphrases)
+        normal["WHO'RE"] = "WHO ARE";
+        normal["WHO’RE"] = "WHO ARE";
+        normal["WHAT'RE"] = "WHAT ARE";
+        normal["WHAT’RE"] = "WHAT ARE";
+        normal["WHERE'D"] = "WHERE DID";
+        normal["WHERE’D"] = "WHERE DID";
+        normal["WHO'D"] = "WHO WOULD";
+        normal["WHO’D"] = "WHO WOULD";
+        normal["WHAT'D"] = "WHAT DID";
+        normal["WHAT’D"] = "WHAT DID";
+        normal["HOW'D"] = "HOW DID";
+        normal["HOW’D"] = "HOW DID";
+        normal["WHEN'D"] = "WHEN DID";
+        normal["WHEN’D"] = "WHEN DID";
+        normal["WHY'D"] = "WHY DID";
+        normal["WHY’D"] = "WHY DID";
 
         return t;
-    }
-}
-
-/// <summary>
-/// Splits user input into sentences according to simple ALICE-style rules.
-/// Program D splits on sentence enders (., !, ?); we do the same and return trimmed, non-empty segments.
-/// </summary>
-internal static class SentenceSplitter
-{
-    internal static IReadOnlyList<string> Split(string? input)
-    {
-        var results = new List<string>();
-        if (string.IsNullOrWhiteSpace(input))
-            return results;
-
-        ReadOnlySpan<char> span = input.AsSpan();
-        int start = 0;
-
-        for (int i = 0; i < span.Length; i++)
-        {
-            char c = span[i];
-            if (c == '.' || c == '!' || c == '?')
-            {
-                // Take the slice [start, i)
-                var slice = span.Slice(start, i - start).ToString().Trim();
-                if (slice.Length > 0) results.Add(slice);
-                // Skip contiguous punctuation like "?!"
-                while (i + 1 < span.Length && (span[i + 1] == '.' || span[i + 1] == '!' || span[i + 1] == '?'))
-                    i++;
-                // Move start to character after the punctuation run
-                start = i + 1;
-            }
-        }
-
-        // Tail
-        if (start < span.Length)
-        {
-            var tail = span.Slice(start).ToString().Trim();
-            if (tail.Length > 0) results.Add(tail);
-        }
-
-        return results;
-    }
-}
-
-/// <summary>
-/// Classic ALICE-style preprocessing:
-/// - Uppercasing
-/// - Punctuation → space (preserving '*' and '_')
-/// - Normal substitutions (token-based)
-/// - Whitespace collapsing
-/// - Sentence splitting (via SentenceSplitter)
-/// </summary>
-internal sealed class PreProcessor
-{
-    internal SubstitutionTables Substitutions { get; }
-
-    internal PreProcessor(SubstitutionTables substitutions)
-    {
-        Substitutions = substitutions ?? throw new ArgumentNullException(nameof(substitutions));
-    }
-
-    /// <summary>
-    /// Full input normalization pipeline for user input (before matching).
-    /// </summary>
-    internal string NormalizeInput(string? input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-            return string.Empty;
-
-        // Uppercase first (Program D tradition)
-        var up = input.ToUpperInvariant();
-        up = ReplacePunctuationWithSpace(up);
-        up = ApplyNormalSubstitutions(up);
-        up = CollapseWhitespace(up);
-        return up.Trim();
-    }
-
-    /// <summary>
-    /// Normalization used for AIML-side pattern/that/topic fields.
-    /// (Same as input normalization; provided for clarity and potential divergence.)
-    /// </summary>
-    internal string NormalizePattern(string? pattern)
-    {
-        if (string.IsNullOrWhiteSpace(pattern))
-            return string.Empty;
-
-        var up = pattern.ToUpperInvariant();
-        up = ReplacePunctuationWithSpace(up);
-        up = CollapseWhitespace(up);
-        return up.Trim();
-    }
-
-    internal string NormalizeThat(string? that) => NormalizePattern(that);
-    internal string NormalizeTopic(string? topic) => NormalizePattern(topic);
-
-    /// <summary>
-    /// Returns sentences obtained from the input using SentenceSplitter.
-    /// (Raw split — do not uppercase/normalize here; caller controls the flow.)
-    /// </summary>
-    internal IReadOnlyList<string> SplitSentences(string? input)
-    {
-        return SentenceSplitter.Split(input);
-    }
-
-    /// <summary>
-    /// Applies "Normal" substitutions as token-level replacements, case-insensitive.
-    /// Assumes the input has already been uppercased and punctuation→space handled.
-    /// </summary>
-    internal string ApplyNormalSubstitutions(string text)
-    {
-        if (string.IsNullOrEmpty(text) || Substitutions.Normal.Count == 0)
-            return text ?? string.Empty;
-
-        // Token-level replacement: split on spaces, map exact tokens.
-        var parts = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        for (int i = 0; i < parts.Length; i++)
-        {
-            var token = parts[i];
-            if (Substitutions.Normal.TryGetValue(token, out var replacement))
-            {
-                parts[i] = replacement;
-            }
-        }
-        return string.Join(' ', parts);
-    }
-
-    /// <summary>
-    /// Replaces punctuation with spaces, preserving '*' and '_' for AIML wildcards.
-    /// Keeps letters, digits, whitespace; everything else becomes a single space.
-    /// </summary>
-    internal string ReplacePunctuationWithSpace(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-
-        Span<char> buffer = text.Length <= 1024
-            ? stackalloc char[text.Length]
-            : new char[text.Length];
-
-        int j = 0;
-        for (int i = 0; i < text.Length; i++)
-        {
-            char c = text[i];
-            if (char.IsLetterOrDigit(c) || char.IsWhiteSpace(c) || c == '*' || c == '_')
-            {
-                buffer[j++] = c;
-            }
-            else
-            {
-                buffer[j++] = ' ';
-            }
-        }
-        return new string(buffer[..j]);
-    }
-
-    /// <summary>
-    /// Collapses runs of whitespace to a single space and trims ends.
-    /// </summary>
-    internal string CollapseWhitespace(string text)
-    {
-        if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-
-        var sb = new StringBuilder(text.Length);
-        bool prevSpace = false;
-
-        foreach (var c in text)
-        {
-            if (char.IsWhiteSpace(c))
-            {
-                if (!prevSpace)
-                {
-                    sb.Append(' ');
-                    prevSpace = true;
-                }
-            }
-            else
-            {
-                sb.Append(c);
-                prevSpace = false;
-            }
-        }
-
-        // Trim possible leading/trailing single space added
-        var result = sb.ToString();
-        return result.Length > 0 ? result.Trim() : result;
-    }
-
-    /// <summary>
-    /// Utility: Title Case (InvariantCulture); used by template transforms later.
-    /// </summary>
-    internal string ToTitleCase(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(text.ToLowerInvariant());
-    }
-
-    /// <summary>
-    /// Utility: Sentence case (first char upper, rest lower); simplistic but effective.
-    /// </summary>
-    internal string ToSentenceCase(string text)
-    {
-        if (string.IsNullOrEmpty(text)) return string.Empty;
-        var lower = text.ToLowerInvariant();
-        return char.ToUpperInvariant(lower[0]) + (lower.Length > 1 ? lower[1..] : string.Empty);
     }
 }

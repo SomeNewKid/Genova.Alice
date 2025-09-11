@@ -3,24 +3,29 @@
 
 using System.Reflection;
 using Genova.Common.Attributes;
-using Genova.Common.Utilities;
-using Microsoft.Extensions.Hosting;
 
 namespace Genova.Alice;
 
 /// <summary>
-/// Orchestrates a full ALICE turn.
+/// High-level façade for interacting with the ALICE chatbot.
+/// Constructs the runtime, loads embedded AIML resources, and
+/// exposes a single-turn API to obtain a response for user input.
 /// </summary>
 [CodeQuality(Public = true, Justification = "Intended for use by the RustyKane.com website.")]
-public class Alice
+public sealed class Alice
 {
     private readonly Engine _engine;
     private readonly UserSession _session;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Alice"/> class,
+    /// loading reductions, core AIML, and bot properties from embedded resources,
+    /// and preparing a session for conversation.
+    /// </summary>
     public Alice()
     {
         // Build the runtime (no Engine yet)
-        var builder = new AliceRuntimeBuilder(
+        AliceRuntimeBuilder builder = new (
             botProperties: new BotProperties(),
             substitutions: SubstitutionTables.CreateClassicDefaults(),
             thatHistoryDepth: 8);
@@ -65,14 +70,14 @@ public class Alice
         foreach (var reductionFile in reductionFiles)
         {
             builder.LoadReduction(
-                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{reductionFile}")!,
+                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{reductionFile}") !,
                 reductionFile);
         }
 
         foreach (string coreFile in coreFiles)
         {
             builder.LoadCoreAiml(
-                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{coreFile}")!,
+                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{coreFile}") !,
                 coreFile);
         }
 
@@ -80,15 +85,22 @@ public class Alice
             () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}bot.properties") !);
 
         if (string.IsNullOrWhiteSpace(builder.Bot.Properties.GetOrEmpty("name")))
+        {
             builder.Bot.Properties.Set("name", "ALICE");
+        }
 
-        // Finalize: create Engine
         _engine = builder.CreateEngine();
 
-        // Start a session and chat
         _session = new UserSession("user-1", builder.Bot);
     }
 
+    /// <summary>
+    /// Processes a single user utterance and returns ALICE's reply.
+    /// This method performs normalization, matching, template evaluation,
+    /// and updates the conversational context (e.g., <c>&lt;that&gt;</c>, predicates).
+    /// </summary>
+    /// <param name="input">The raw user input text.</param>
+    /// <returns>The chatbot's response for the given input.</returns>
     public string GetResponse(string input)
     {
         return _engine.Respond(input, _session);
@@ -96,8 +108,8 @@ public class Alice
 
     private static string GetEmbeddedFilesFolder(Assembly assembly)
     {
-        var name = assembly.FullName?.Split(',')[0];
-        var folder = name + ".Data.";
+        string? name = assembly.FullName?.Split(',')[0];
+        string folder = name + ".Data.";
         return folder;
     }
 }

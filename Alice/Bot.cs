@@ -1,205 +1,42 @@
-﻿// =============================================================
-// Genova.Alice.Core — Part 5 (Step 3: Implementations)
-// Bot, Predicates, BotProperties, UserSession, History
-// =============================================================
-
-using System;
-using System.Collections.Generic;
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
 namespace Genova.Alice;
 
 /// <summary>
-/// Global bot context: properties (<bot name="..."/>), substitutions, and defaults.
+/// Global bot context containing persona properties (used by <c>&lt;bot name="…"/&gt;</c>),
+/// substitution tables, and default configuration values (e.g., THAT history depth).
 /// </summary>
 internal sealed class Bot
 {
-    internal BotProperties Properties { get; }
-    internal SubstitutionTables Substitutions { get; }
-    internal int ThatHistoryDepth { get; }
-
+    /// <summary>
+    /// Initializes a new instance of the <see cref="Bot"/> class with optional
+    /// persona properties and substitution tables.
+    /// </summary>
+    /// <param name="properties">Optional bot properties; if <c>null</c>, an empty bag is used.</param>
+    /// <param name="substitutions">Optional substitution tables; if <c>null</c>, an empty set is used.</param>
+    /// <param name="thatHistoryDepth">Maximum size of the per-session <c>&lt;that&gt;</c> history.</param>
     internal Bot(BotProperties? properties = null, SubstitutionTables? substitutions = null, int thatHistoryDepth = 8)
     {
         Properties = properties ?? new BotProperties();
         Substitutions = substitutions ?? SubstitutionTables.CreateEmpty();
         ThatHistoryDepth = thatHistoryDepth > 0 ? thatHistoryDepth : 8;
     }
-}
-
-/// <summary>
-/// Case-insensitive map of user predicates (for <set name="x"/> and <get name="x"/>).
-/// </summary>
-internal sealed class Predicates
-{
-    private readonly Dictionary<string, string> _map =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    internal int Count => _map.Count;
-
-    internal Predicates() { }
-
-    internal void Set(string name, string value)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return;
-        _map[name] = value ?? string.Empty;
-    }
-
-    internal bool TryGet(string name, out string value)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            value = null!;
-            return false;
-        }
-        var ok = _map.TryGetValue(name, out var v);
-        value = ok ? v! : null!;
-        return ok;
-    }
-
-    internal string GetOrEmpty(string name)
-    {
-        return _map.TryGetValue(name, out var v) ? v : string.Empty;
-    }
-
-    internal void Clear() => _map.Clear();
-}
-
-/// <summary>
-/// Bot-level properties (for <bot name="..."/> lookups). Case-insensitive keys.
-/// </summary>
-internal sealed class BotProperties
-{
-    private readonly Dictionary<string, string> _map =
-        new(StringComparer.OrdinalIgnoreCase);
-
-    internal int Count => _map.Count;
-
-    internal BotProperties() { }
-
-    internal void Set(string name, string value)
-    {
-        if (string.IsNullOrWhiteSpace(name)) return;
-        _map[name] = value ?? string.Empty;
-    }
-
-    internal bool TryGet(string name, out string value)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            value = null!;
-            return false;
-        }
-        var ok = _map.TryGetValue(name, out var v);
-        value = ok ? v! : null!;
-        return ok;
-    }
-
-    internal string GetOrEmpty(string name)
-    {
-        return _map.TryGetValue(name, out var v) ? v : string.Empty;
-    }
-
-    internal void Clear() => _map.Clear();
-}
-
-/// <summary>
-/// Fixed-capacity, most-recent-first history of strings. Used for THAT and INPUT stacks.
-/// </summary>
-internal sealed class History
-{
-    private readonly int _capacity;
-    private readonly List<string> _items;
-
-    internal int Capacity => _capacity;
-    internal int Count => _items.Count;
-
-    internal History(int capacity)
-    {
-        _capacity = capacity > 0 ? capacity : 1;
-        _items = new List<string>(_capacity);
-    }
-
-    /// <summary>Push a new entry; drops the oldest when exceeding capacity.</summary>
-    internal void Push(string value)
-    {
-        // most-recent-first
-        _items.Insert(0, value ?? string.Empty);
-        if (_items.Count > _capacity)
-            _items.RemoveAt(_items.Count - 1);
-    }
-
-    /// <summary>Returns the most recent item, or empty string if none.</summary>
-    internal string PeekOrEmpty()
-    {
-        return _items.Count == 0 ? string.Empty : _items[0];
-    }
 
     /// <summary>
-    /// 1-based indexing from most-recent (1) to oldest (Count).
-    /// Returns empty string if out of range.
+    /// Gets the bot-level property bag used to resolve <c>&lt;bot name="…"/&gt;</c> lookups.
+    /// Keys are case-insensitive.
     /// </summary>
-    internal string At(int index1)
-    {
-        int i0 = index1 - 1;
-        return (i0 >= 0 && i0 < _items.Count) ? _items[i0] : string.Empty;
-    }
+    internal BotProperties Properties { get; }
 
-    internal void Clear() => _items.Clear();
-}
+    /// <summary>
+    /// Gets the substitution tables used during preprocessing and template transforms.
+    /// </summary>
+    internal SubstitutionTables Substitutions { get; }
 
-/// <summary>
-/// Per-user session state: predicates, topic, that/input histories.
-/// </summary>
-internal sealed class UserSession
-{
-    private string _topic = "*";
-
-    internal string UserId { get; }
-    internal Predicates Predicates { get; }
-    internal string Topic
-    {
-        get => _topic;
-        set => _topic = string.IsNullOrWhiteSpace(value) ? "*" : value.Trim();
-    }
-
-    internal string That
-    {
-        get
-        {
-            var t = ThatHistory.PeekOrEmpty();
-            return string.IsNullOrEmpty(t) ? "*" : t;
-        }
-    }
-
-    internal History ThatHistory { get; }
-    internal History InputHistory { get; }
-
-    internal UserSession(string userId, Bot botContext, int inputHistoryCapacity = 16)
-    {
-        UserId = userId ?? throw new ArgumentNullException(nameof(userId));
-        if (botContext is null) throw new ArgumentNullException(nameof(botContext));
-
-        Predicates = new Predicates();
-        _topic = "*";
-        ThatHistory = new History(botContext.ThatHistoryDepth > 0 ? botContext.ThatHistoryDepth : 8);
-        InputHistory = new History(inputHistoryCapacity > 0 ? inputHistoryCapacity : 16);
-    }
-
-    /// <summary>Push a new THAT (bot reply) into history.</summary>
-    internal void PushThat(string that)
-    {
-        ThatHistory.Push(that ?? string.Empty);
-    }
-
-    /// <summary>Push a new INPUT (user utterance) into history.</summary>
-    internal void PushInput(string input)
-    {
-        InputHistory.Push(input ?? string.Empty);
-    }
-
-    /// <summary>Returns most recent THAT or "*".</summary>
-    internal string GetThatOrStar()
-    {
-        var t = ThatHistory.PeekOrEmpty();
-        return string.IsNullOrEmpty(t) ? "*" : t;
-    }
+    /// <summary>
+    /// Gets the maximum number of prior bot replies retained in the per-session
+    /// <c>&lt;that&gt;</c> history (most-recent-first).
+    /// </summary>
+    internal int ThatHistoryDepth { get; }
 }

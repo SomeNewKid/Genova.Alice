@@ -23,11 +23,11 @@ internal class Program
         while (true)
         {
             System.Console.Write("You> ");
-            var line = System.Console.ReadLine();
+            string? line = System.Console.ReadLine();
             if (line == null) break;
             if (line.Trim().Equals("quit", StringComparison.OrdinalIgnoreCase)) break;
 
-            var reply = alice.GetResponse(line);
+            string reply = alice.GetResponse(line);
             System.Console.WriteLine($"Alice> {reply}");
         }
     }

@@ -1,45 +1,33 @@
-﻿// =============================================================
-// Genova.Alice.Tests — Part 8 (Step 2: TDD)
-// Unit tests for Engine (chat loop & SRAI) — xUnit + FluentAssertions
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System;
 using FluentAssertions;
-using Xunit;
-using Genova.Alice;
 
-namespace Genova.Alice.Tests;
+namespace Genova.Alice.UnitTests;
 
-public class EngineTests
+public class Engine_Tests
 {
     private static (Engine engine, UserSession session, PreProcessor pre, Graphmaster gm, Bot bot)
         Make()
     {
-        var props = new BotProperties();
+        BotProperties props = new BotProperties();
         props.Set("name", "ALICE");
 
-        var subs = SubstitutionTables.CreateClassicDefaults();
-        var bot = new Bot(props, subs, thatHistoryDepth: 4);
-        var pre = new PreProcessor(subs);
-        var gm = new Graphmaster();
+        SubstitutionTables subs = SubstitutionTables.CreateClassicDefaults();
+        Bot bot = new (props, subs, thatHistoryDepth: 4);
+        PreProcessor pre = new (subs);
+        Graphmaster gm = new ();
 
         // Engine with default TemplateProcessor wired to Engine.Srai
-        var engine = new Engine(bot, gm, pre, templates: null);
-        var session = new UserSession("u1", bot);
+        Engine engine = new (bot, gm, pre, templates: null);
+        UserSession session = new ("u1", bot);
         return (engine, session, pre, gm, bot);
     }
 
     [Fact]
     public void Respond_handles_multi_sentence_and_that_context()
     {
-        string debug = "";
-        foreach (string file in Directory.GetFiles("C:\\Git\\Genova.Alice\\Alice\\Data", "*.aiml"))
-        {
-            debug += file + Environment.NewLine;
-        }
-        File.WriteAllText("C:\\Temp\\debug.txt", debug);
-
-        var (engine, session, pre, gm, _) = Make();
+        (Engine engine, UserSession session, PreProcessor pre, Graphmaster gm, Bot _) = Make();
 
         // First category: literal HELLO -> "Hi."
         gm.AddCategory(
@@ -55,7 +43,7 @@ public class EngineTests
             topic: pre.NormalizePattern("*"),
             template: "I'm fine.");
 
-        var reply = engine.Respond("hello. how are you?", session);
+        string reply = engine.Respond("hello. how are you?", session);
 
         reply.Should().Be("Hi. I'm fine.");
 
@@ -68,7 +56,7 @@ public class EngineTests
     [Fact]
     public void Respond_updates_predicates_and_persists_across_sentences()
     {
-        var (engine, session, pre, gm, _) = Make();
+        (Engine engine, UserSession session, PreProcessor pre, Graphmaster gm, Bot _) = Make();
 
         gm.AddCategory(
             pattern: pre.NormalizePattern("MY NAME IS *"),
@@ -82,7 +70,7 @@ public class EngineTests
             topic: pre.NormalizePattern("*"),
             template: "You told me your name is <get name=\"name\"/>.");
 
-        var reply = engine.Respond("my name is Alice. what is my name", session);
+        string reply = engine.Respond("my name is Alice. what is my name", session);
 
         reply.Should().Be("Nice to meet you, ALICE. You told me your name is ALICE.");
         session.Predicates.GetOrEmpty("name").Should().Be("ALICE");
@@ -91,7 +79,7 @@ public class EngineTests
     [Fact]
     public void Srai_executes_single_cycle_without_affecting_input_history()
     {
-        var (engine, session, pre, gm, _) = Make();
+        (Engine engine, UserSession session, PreProcessor pre, Graphmaster gm, Bot _) = Make();
 
         gm.AddCategory(
             pattern: pre.NormalizePattern("WHAT IS YOUR NAME"),
@@ -106,13 +94,13 @@ public class EngineTests
             template: "ALICE");
 
         // Normal respond
-        var r1 = engine.Respond("What is your name?", session);
+        string r1 = engine.Respond("What is your name?", session);
         r1.Should().Be("ALICE");
 
-        var inputsBefore = session.InputHistory.Count;
+        int inputsBefore = session.InputHistory.Count;
 
         // Direct SRAI call should NOT push a new input
-        var r2 = engine.Srai("TELL ME YOUR NAME", session, depth: 0);
+        string r2 = engine.Srai("TELL ME YOUR NAME", session, depth: 0);
         r2.Should().Be("ALICE");
 
         session.InputHistory.Count.Should().Be(inputsBefore);
@@ -121,7 +109,7 @@ public class EngineTests
     [Fact]
     public void Respond_pushes_original_input_into_history()
     {
-        var (engine, session, pre, gm, _) = Make();
+        (Engine engine, UserSession session, PreProcessor pre, Graphmaster gm, Bot _) = Make();
 
         gm.AddCategory(
             pattern: pre.NormalizePattern("HELLO"),
@@ -129,8 +117,8 @@ public class EngineTests
             topic: pre.NormalizePattern("*"),
             template: "Hi.");
 
-        var input = "hello";
-        var reply = engine.Respond(input, session);
+        string input = "hello";
+        string reply = engine.Respond(input, session);
 
         reply.Should().Be("Hi.");
         session.InputHistory.At(1).Should().Be(input);

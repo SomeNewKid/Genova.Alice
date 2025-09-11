@@ -1,41 +1,30 @@
-﻿// =============================================================
-// Genova.Alice.Tests — Part 3 (Step 2: TDD)
-// Unit tests for Graphmaster & wildcard matching (xUnit + FluentAssertions)
-// Notes:
-// - Uses PreProcessor to normalize inputs (as Program D would do).
-// - Verifies precedence: '_' > literal > '*'
-// - Verifies segment boundaries: PATTERN <THAT> THAT <TOPIC> TOPIC
-// - Verifies greedy + backtracking and multi-wildcard capture ordering
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.Linq;
 using FluentAssertions;
-using Xunit;
-using Genova.Alice;
 
-namespace Genova.Alice.Tests;
+namespace Genova.Alice.UnitTests;
 
-public class GraphmasterTests
+public class Graphmaster_Tests
 {
     private static (Graphmaster gm, PreProcessor pre) Make()
     {
-        var pre = new PreProcessor(SubstitutionTables.CreateClassicDefaults());
-        var gm = new Graphmaster();
+        PreProcessor pre = new (SubstitutionTables.CreateClassicDefaults());
+        Graphmaster gm = new ();
         return (gm, pre);
     }
 
     [Fact]
     public void Tokenize_splits_by_space_and_drops_empties()
     {
-        var tokens = Graphmaster.Tokenize(" A  B   C ");
+        IReadOnlyList<string> tokens = Graphmaster.Tokenize(" A  B   C ");
         tokens.Should().Equal("A", "B", "C");
     }
 
     [Fact]
     public void AddCategory_and_exact_literal_match_returns_category_and_no_stars()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         gm.AddCategory(
             pattern: pre.NormalizePattern("HELLO"),
@@ -44,7 +33,7 @@ public class GraphmasterTests
             template: "Hi."
         );
 
-        var m = gm.Match(
+        Match? m = gm.Match(
             normalizedInput: pre.NormalizeInput("hello"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -59,19 +48,20 @@ public class GraphmasterTests
     [Fact]
     public void Match_prefers_underscore_over_literal_over_star()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         // Three competing categories for pattern: "<something> HELLO"
         gm.AddCategory(pre.NormalizePattern("_ HELLO"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "UNDER");
         gm.AddCategory(pre.NormalizePattern("GOOD HELLO"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "LITERAL");
         gm.AddCategory(pre.NormalizePattern("* HELLO"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "STAR");
 
-        var m = gm.Match(
+        Match? m = gm.Match(
             normalizedInput: pre.NormalizeInput("good hello"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("*"));
 
         m.Should().NotBeNull();
+
         // Program D precedence is '_' > literal > '*'
         m!.Category.Template.Should().Be("UNDER");
     }
@@ -79,13 +69,13 @@ public class GraphmasterTests
     [Fact]
     public void Match_respects_segment_boundaries_and_requires_that_to_match()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         // Category requires THAT = OK
         gm.AddCategory(pre.NormalizePattern("*"), pre.NormalizePattern("OK"), pre.NormalizePattern("*"), "GOT_THAT");
 
         // With THAT = OK -> match
-        var m1 = gm.Match(
+        Match? m1 = gm.Match(
             normalizedInput: pre.NormalizeInput("anything you like"),
             normalizedThat: pre.NormalizeThat("OK"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -95,7 +85,7 @@ public class GraphmasterTests
         m1.Stars.StarAt(1).Should().Be("ANYTHING YOU LIKE"); // star from pattern segment
 
         // With THAT = NOT OK -> no match
-        var m2 = gm.Match(
+        Match? m2 = gm.Match(
             normalizedInput: pre.NormalizeInput("anything you like"),
             normalizedThat: pre.NormalizeThat("NOT OK"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -106,11 +96,11 @@ public class GraphmasterTests
     [Fact]
     public void Star_is_greedy_but_backtracks_to_match_rest()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         gm.AddCategory(pre.NormalizePattern("A * B"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "T");
 
-        var m = gm.Match(
+        Match? m = gm.Match(
             normalizedInput: pre.NormalizeInput("a x y b"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -122,11 +112,11 @@ public class GraphmasterTests
     [Fact]
     public void Multi_wildcard_captures_are_recorded_in_order()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         gm.AddCategory(pre.NormalizePattern("A * B * C"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "T");
 
-        var m = gm.Match(
+        Match? m = gm.Match(
             normalizedInput: pre.NormalizeInput("a x b y c"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -140,12 +130,12 @@ public class GraphmasterTests
     [Fact]
     public void That_and_topic_captures_are_separate_from_pattern_captures()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         // Pattern, THAT, and TOPIC each with a '*' to capture
         gm.AddCategory(pre.NormalizePattern("*"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "CAP_ALL");
 
-        var m = gm.Match(
+        Match? m = gm.Match(
             normalizedInput: pre.NormalizeInput("hello world"),
             normalizedThat: pre.NormalizeThat("yeah ok"),
             normalizedTopic: pre.NormalizeTopic("jokes"));
@@ -159,7 +149,7 @@ public class GraphmasterTests
     [Fact]
     public void Topic_specific_category_only_matches_when_topic_matches()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         gm.AddCategory(pre.NormalizePattern("TELL ME A JOKE"),
                        pre.NormalizePattern("*"),
@@ -167,7 +157,7 @@ public class GraphmasterTests
                        "JOKE");
 
         // With topic = JOKES -> match
-        var m1 = gm.Match(
+        Match? m1 = gm.Match(
             normalizedInput: pre.NormalizeInput("tell me a joke"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("jokes"));
@@ -176,7 +166,7 @@ public class GraphmasterTests
         m1!.Category.Template.Should().Be("JOKE");
 
         // With topic = * -> no match
-        var m2 = gm.Match(
+        Match? m2 = gm.Match(
             normalizedInput: pre.NormalizeInput("tell me a joke"),
             normalizedThat: pre.NormalizeThat("*"),
             normalizedTopic: pre.NormalizeTopic("*"));
@@ -187,20 +177,20 @@ public class GraphmasterTests
     [Fact]
     public void Underscore_consumes_one_or_more_tokens_star_can_be_empty()
     {
-        var (gm, pre) = Make();
+        (Graphmaster gm, PreProcessor pre) = Make();
 
         gm.AddCategory(pre.NormalizePattern("_"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "UNDER");
         gm.AddCategory(pre.NormalizePattern("*"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "STAR");
 
         // Input with one token: both match; '_' should win
-        var m1 = gm.Match(pre.NormalizeInput("HELLO"), pre.NormalizeThat("*"), pre.NormalizeTopic("*"));
+        Match? m1 = gm.Match(pre.NormalizeInput("HELLO"), pre.NormalizeThat("*"), pre.NormalizeTopic("*"));
         m1.Should().NotBeNull();
         m1!.Category.Template.Should().Be("UNDER");
 
         // Pattern: "A *" should match "A" with empty star
         gm = new Graphmaster();
         gm.AddCategory(pre.NormalizePattern("A *"), pre.NormalizePattern("*"), pre.NormalizePattern("*"), "T");
-        var m2 = gm.Match(pre.NormalizeInput("A"), pre.NormalizeThat("*"), pre.NormalizeTopic("*"));
+        Match? m2 = gm.Match(pre.NormalizeInput("A"), pre.NormalizeThat("*"), pre.NormalizeTopic("*"));
         m2.Should().NotBeNull();
         m2!.Star(1).Should().Be(string.Empty);
     }

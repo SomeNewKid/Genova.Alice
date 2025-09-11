@@ -1,23 +1,16 @@
-﻿// =============================================================
-// Genova.Alice.Tests — Part 1 (Step 2: TDD)
-// Unit tests for SubstitutionTables (xUnit + FluentAssertions)
-// Note: SubstitutionTables is internal; InternalsVisibleTo("Genova.Alice.Tests") must be set in the main assembly.
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.Collections.Generic;
 using FluentAssertions;
-using Xunit;
-using Genova.Alice;
 
-namespace Genova.Alice.Tests;
+namespace Genova.Alice.UnitTests;
 
-public class SubstitutionTablesTests
+public class SubstitutionTables_Tests
 {
     [Fact]
     public void CreateEmpty_returns_non_null_and_empty_maps()
     {
-        var tables = SubstitutionTables.CreateEmpty();
+        SubstitutionTables tables = SubstitutionTables.CreateEmpty();
 
         tables.Should().NotBeNull();
         tables.Normal.Should().NotBeNull();
@@ -34,7 +27,7 @@ public class SubstitutionTablesTests
     [Fact]
     public void CreateEmpty_maps_are_case_insensitive_dictionaries()
     {
-        var tables = SubstitutionTables.CreateEmpty();
+        SubstitutionTables tables = SubstitutionTables.CreateEmpty();
 
         tables.Normal["I'M"] = "I AM";
         tables.Person["MY"] = "YOUR";
@@ -55,7 +48,7 @@ public class SubstitutionTablesTests
     [Fact]
     public void Ctor_without_arguments_creates_empty_case_insensitive_maps()
     {
-        var tables = new SubstitutionTables();
+        SubstitutionTables tables = new SubstitutionTables();
 
         tables.Normal.Should().NotBeNull();
         tables.Person.Should().NotBeNull();
@@ -76,12 +69,12 @@ public class SubstitutionTablesTests
     public void Ctor_with_existing_maps_copies_entries_and_enforces_case_insensitive_lookups()
     {
         // Original maps with default (case-sensitive) comparer
-        var normalSrc = new Dictionary<string, string> { ["I'M"] = "I AM" };
-        var personSrc = new Dictionary<string, string> { ["MY"] = "YOUR" };
-        var person2Src = new Dictionary<string, string> { ["YOU"] = "I" };
-        var genderSrc = new Dictionary<string, string> { ["HE"] = "SHE" };
+        Dictionary<string, string> normalSrc = new () { ["I'M"] = "I AM" };
+        Dictionary<string, string> personSrc = new () { ["MY"] = "YOUR" };
+        Dictionary<string, string> person2Src = new () { ["YOU"] = "I" };
+        Dictionary<string, string> genderSrc = new () { ["HE"] = "SHE" };
 
-        var tables = new SubstitutionTables(normalSrc, personSrc, person2Src, genderSrc);
+        SubstitutionTables tables = new SubstitutionTables(normalSrc, personSrc, person2Src, genderSrc);
 
         // Should not be the same instances (defensive copy)
         tables.Normal.Should().NotBeSameAs(normalSrc);
@@ -99,7 +92,7 @@ public class SubstitutionTablesTests
     [Fact]
     public void CreateClassicDefaults_seeds_minimum_expected_entries_in_each_map()
     {
-        var tables = SubstitutionTables.CreateClassicDefaults();
+        SubstitutionTables tables = SubstitutionTables.CreateClassicDefaults();
 
         tables.Normal.Should().ContainKey("I'M");
         tables.Normal["i'm"].Should().Be("I AM");
@@ -117,7 +110,7 @@ public class SubstitutionTablesTests
     [Fact]
     public void CreateClassicDefaults_maps_are_case_insensitive()
     {
-        var tables = SubstitutionTables.CreateClassicDefaults();
+        SubstitutionTables tables = SubstitutionTables.CreateClassicDefaults();
 
         // check a couple with different casing to ensure comparers are correct
         tables.Normal.ContainsKey("You'Re").Should().Be(tables.Normal.ContainsKey("YOU'RE"));
@@ -126,6 +119,7 @@ public class SubstitutionTablesTests
             tables.Normal["you're"].Should().Be("YOU ARE");
         }
 
-        tables.Gender.ContainsKey("she").Should().BeTrue(); // expecting HE<->SHE mapping implies both directions exist or at least lookup works
+        // expecting HE<->SHE mapping implies both directions exist or at least lookup works
+        tables.Gender.ContainsKey("she").Should().BeTrue(); 
     }
 }

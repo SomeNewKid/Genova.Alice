@@ -1,27 +1,23 @@
-﻿// =============================================================
-// Genova.Alice.Core — Part 9 (Implementations for TemplateProcessor additions)
-// Implements: <learn/> (in-memory emit via LearnEmitter) and <date/> tag.
-// Also extends the constructor to accept learnEmitter and nowProvider.
-// NOTE: This is a full replacement for TemplateProcessor to make patching easy.
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
+using System.Text;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Genova.Alice;
 
-internal delegate string SraiInvoker(string input, UserSession session, int depth);
-
-internal interface ITemplateTagHandler
-{
-    string Evaluate(XElement element, TemplateProcessor.Context ctx);
-}
-
+/// <summary>
+/// Core template processor for AIML template XML. Supports text nodes and core tags,
+/// SRAI recursion, random selection, conditions, casing transforms, <c>&lt;learn&gt;</c>,
+/// and date/time formatting via <c>&lt;date/&gt;</c>.
+/// </summary>
 internal sealed class TemplateProcessor
 {
+    /// <summary>
+    /// The default maximum recursion depth for <c>&lt;srai&gt;</c> calls.
+    /// </summary>
     internal const int DefaultMaxDepth = 10;
 
     private readonly Bot _bot;
@@ -29,38 +25,30 @@ internal sealed class TemplateProcessor
     private readonly SraiInvoker _srai;
     private readonly Random _rng;
     private readonly int _maxDepth;
-
-    // NEW: optional collaborators for Part 9
-    internal delegate void LearnEmitter(string pattern, string that, string topic, string templateXml, string? sourceName);
     private readonly LearnEmitter? _learn;
     private readonly Func<DateTime>? _nowProvider;
 
     private readonly Dictionary<string, ITemplateTagHandler> _handlers =
         new(StringComparer.OrdinalIgnoreCase);
 
-    internal sealed class Context
-    {
-        internal UserSession Session { get; }
-        internal Match Match { get; }
-        internal int Depth { get; }
-        internal TemplateProcessor Processor { get; }
-
-        internal Context(TemplateProcessor processor, UserSession session, Match match, int depth)
-        {
-            Processor = processor ?? throw new ArgumentNullException(nameof(processor));
-            Session = session ?? throw new ArgumentNullException(nameof(session));
-            Match = match ?? throw new ArgumentNullException(nameof(match));
-            Depth = depth;
-        }
-    }
-
-    internal TemplateProcessor(Bot bot,
-                               PreProcessor preProcessor,
-                               SraiInvoker sraiInvoker,
-                               Random? rng = null,
-                               int maxDepth = DefaultMaxDepth,
-                               LearnEmitter? learnEmitter = null,
-                               Func<DateTime>? nowProvider = null)
+    /// <summary>
+    /// Initializes a new instance of the <see cref="TemplateProcessor"/> class.
+    /// </summary>
+    /// <param name="bot">Bot persona and configuration context.</param>
+    /// <param name="preProcessor">Preprocessor used for casing, punctuation, and substitutions.</param>
+    /// <param name="sraiInvoker">Delegate used to resolve <c>&lt;srai&gt;</c> recursion.</param>
+    /// <param name="rng">Random source for <c>&lt;random&gt;</c>; if <c>null</c>, a new instance is used.</param>
+    /// <param name="maxDepth">Maximum recursion depth for <c>&lt;srai&gt;</c> calls.</param>
+    /// <param name="learnEmitter">Optional sink for <c>&lt;learn&gt;</c> categories.</param>
+    /// <param name="nowProvider">Optional clock provider for <c>&lt;date/&gt;</c>; if <c>null</c>, <see cref="DateTime.Now"/> is used.</param>
+    internal TemplateProcessor(
+        Bot bot,
+        PreProcessor preProcessor,
+        SraiInvoker sraiInvoker,
+        Random? rng = null,
+        int maxDepth = DefaultMaxDepth,
+        LearnEmitter? learnEmitter = null,
+        Func<DateTime>? nowProvider = null)
     {
         _bot = bot ?? throw new ArgumentNullException(nameof(bot));
         _pre = preProcessor ?? throw new ArgumentNullException(nameof(preProcessor));
@@ -72,57 +60,137 @@ internal sealed class TemplateProcessor
         _nowProvider = nowProvider;
     }
 
+    /// <summary>
+    /// Processes a template document or fragment into rendered text.
+    /// Accepts either a full <c>&lt;template&gt;…&lt;/template&gt;</c> or a fragment,
+    /// and returns the trimmed final output.
+    /// </summary>
+    /// <param name="templateXml">Raw template XML (document or fragment).</param>
+    /// <param name="session">The session providing conversational state.</param>
+    /// <param name="match">The current match (category, captures, normalized context).</param>
+    /// <param name="depth">Current recursion depth for <c>&lt;srai&gt;</c>.</param>
+    /// <returns>Rendered, whitespace-trimmed reply text (possibly empty).</returns>
     internal string Process(string templateXml, UserSession session, Match match, int depth = 0)
     {
-        if (string.IsNullOrWhiteSpace(templateXml)) return string.Empty;
+        if (string.IsNullOrWhiteSpace(templateXml))
+        {
+            return string.Empty;
+        }
 
         // 1) Try as-is: if it's a full <template>…</template> doc, evaluate it.
         try
         {
-            var xdoc1 = XDocument.Parse(templateXml, LoadOptions.PreserveWhitespace);
-            var root1 = xdoc1.Root;
+            XDocument xdoc1 = XDocument.Parse(templateXml, LoadOptions.PreserveWhitespace);
+            XElement? root1 = xdoc1.Root;
             if (root1 != null && root1.Name.LocalName.Equals("template", StringComparison.OrdinalIgnoreCase))
             {
-                var ctx1 = new Context(this, session, match, depth);
-                var result1 = EvalChildren(root1, ctx1);
-                return result1.Trim(); // <-- trim final output
+                Context ctx1 = new (this, session, match, depth);
+                string result1 = EvalChildren(root1, ctx1);
+                return result1.Trim();
             }
         }
-        catch (System.Xml.XmlException)
+        catch (XmlException)
         {
             // fall through to wrapper attempt
         }
 
         // 2) Wrap fragments or plain text in <template>…</template> and try again.
-        var wrapped = $"<template>{templateXml}</template>";
+        string wrapped = $"<template>{templateXml}</template>";
         try
         {
-            var xdoc2 = XDocument.Parse(wrapped, LoadOptions.PreserveWhitespace);
-            var root2 = xdoc2.Root!;
-            var ctx2 = new Context(this, session, match, depth);
-            var result2 = EvalChildren(root2, ctx2);
-            return result2.Trim(); // <-- trim final output
+            XDocument xdoc2 = XDocument.Parse(wrapped, LoadOptions.PreserveWhitespace);
+            XElement root2 = xdoc2.Root!;
+            Context ctx2 = new (this, session, match, depth);
+            string result2 = EvalChildren(root2, ctx2);
+            return result2.Trim();
         }
-        catch (System.Xml.XmlException)
+        catch (XmlException)
         {
             // 3) Last resort: return literal (don’t blow up runtime)
-            return templateXml.Trim(); // <-- trim literal fallback too
+            return templateXml.Trim();
         }
     }
 
-
-    // -----------------------------
-    // Registration & extensibility
-    // -----------------------------
+    /// <summary>
+    /// Registers a custom tag handler for the specified element name (case-insensitive).
+    /// </summary>
+    /// <param name="tagName">The element name to handle.</param>
+    /// <param name="handler">The handler implementation.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="tagName"/> or <paramref name="handler"/> is <c>null</c>.</exception>
     internal void RegisterHandler(string tagName, ITemplateTagHandler handler)
     {
-        if (string.IsNullOrWhiteSpace(tagName)) throw new ArgumentNullException(nameof(tagName));
+        if (string.IsNullOrWhiteSpace(tagName))
+        {
+            throw new ArgumentNullException(nameof(tagName));
+        }
+
         _handlers[tagName] = handler ?? throw new ArgumentNullException(nameof(handler));
     }
 
+    /// <summary>
+    /// Attempts to retrieve a previously registered tag handler.
+    /// </summary>
+    /// <param name="tagName">The element name.</param>
+    /// <param name="handler">When this method returns, contains the handler if found; otherwise <c>null</c>.</param>
+    /// <returns><c>true</c> if a handler is registered for the element name; otherwise <c>false</c>.</returns>
     internal bool TryGetHandler(string tagName, out ITemplateTagHandler? handler)
     {
         return _handlers.TryGetValue(tagName, out handler);
+    }
+
+    private static int ReadIndex1(XElement el, int defaultValue = 1)
+    {
+        string? attr = el.Attribute("index")?.Value;
+        if (string.IsNullOrWhiteSpace(attr))
+        {
+            return defaultValue;
+        }
+
+        return int.TryParse(attr, out int i) && i > 0 ? i : defaultValue;
+    }
+
+    private static string Tag_Star(XElement el, Context ctx)
+    {
+        int i = ReadIndex1(el, 1);
+        return ctx.Match.Star(i) ?? string.Empty;
+    }
+
+    private static string Tag_ThatStar(XElement el, Context ctx)
+    {
+        int i = ReadIndex1(el, 1);
+        return ctx.Match.ThatStar(i) ?? string.Empty;
+    }
+
+    private static string Tag_TopicStar(XElement el, Context ctx)
+    {
+        int i = ReadIndex1(el, 1);
+        return ctx.Match.TopicStar(i) ?? string.Empty;
+    }
+
+    private static string Tag_Get(XElement el, Context ctx)
+    {
+        string name = el.Attribute("name")?.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        if (name.Equals("topic", StringComparison.OrdinalIgnoreCase))
+        {
+            return ctx.Session.Topic;
+        }
+
+        return ctx.Session.Predicates.GetOrEmpty(name);
+    }
+
+    private static string GetInnerXml(XElement el)
+    {
+        if (!el.HasElements && el.Value.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Concat(el.Nodes().Select(n => n.ToString(SaveOptions.DisableFormatting)));
     }
 
     // -----------------------------
@@ -141,16 +209,18 @@ internal sealed class TemplateProcessor
 
     private string EvalElement(XElement el, Context ctx)
     {
-        var name = el.Name.LocalName.ToLowerInvariant();
+        string name = el.Name.LocalName.ToLowerInvariant();
 
         // Handler override?
-        if (TryGetHandler(name, out var handler))
+        if (TryGetHandler(name, out ITemplateTagHandler? handler))
+        {
             return handler!.Evaluate(el, ctx);
+        }
 
         return name switch
         {
             "srai" => Tag_Srai(el, ctx),
-            "sr" => Tag_Sr(el, ctx),
+            "sr" => Tag_Sr(ctx),
 
             "star" => Tag_Star(el, ctx),
             "thatstar" => Tag_ThatStar(el, ctx),
@@ -159,7 +229,7 @@ internal sealed class TemplateProcessor
             "think" => Tag_Think(el, ctx),
             "set" => Tag_Set(el, ctx),
             "get" => Tag_Get(el, ctx),
-            "bot" => Tag_Bot(el, ctx),
+            "bot" => Tag_Bot(el),
 
             "random" => Tag_Random(el, ctx),
             "condition" => Tag_Condition(el, ctx),
@@ -170,8 +240,8 @@ internal sealed class TemplateProcessor
             "sentence" => Tag_Sentence(el, ctx),
 
             // NEW
-            "learn" => Tag_Learn(el, ctx),
-            "date" => Tag_Date(el, ctx),
+            "learn" => Tag_Learn(el),
+            "date" => Tag_Date(el),
 
             // Unknown tags: evaluate children (container semantics)
             _ => EvalChildren(el, ctx),
@@ -180,9 +250,12 @@ internal sealed class TemplateProcessor
 
     private string EvalChildren(XContainer parent, Context ctx)
     {
-        var sb = new System.Text.StringBuilder();
-        foreach (var n in parent.Nodes())
+        StringBuilder sb = new ();
+        foreach (XNode n in parent.Nodes())
+        {
             sb.Append(EvalNode(n, ctx));
+        }
+
         return sb.ToString();
     }
 
@@ -191,44 +264,24 @@ internal sealed class TemplateProcessor
     // -----------------------------
     private string Tag_Srai(XElement el, Context ctx)
     {
-        var inner = EvalChildren(el, ctx);
-        File.AppendAllText(@"C:\temp\srai-trace.txt",
-            $"SRAI(\"{inner}\") with THAT=\"{ctx.Session.GetThatOrStar()}\" TOPIC=\"{ctx.Session.Topic}\"\r\n");
+        if (ctx.Depth >= _maxDepth)
+        {
+            return string.Empty;
+        }
 
-        if (ctx.Depth >= _maxDepth) return string.Empty;
+        string inner = EvalChildren(el, ctx);
         return _srai(inner, ctx.Session, ctx.Depth + 1) ?? string.Empty;
     }
 
-    private string Tag_Sr(XElement el, Context ctx)
+    private string Tag_Sr(Context ctx)
     {
-        if (ctx.Depth >= _maxDepth) return string.Empty;
-        var inner = ctx.Match.Star(1);
+        if (ctx.Depth >= _maxDepth)
+        {
+            return string.Empty;
+        }
+
+        string inner = ctx.Match.Star(1);
         return _srai(inner, ctx.Session, ctx.Depth + 1) ?? string.Empty;
-    }
-
-    private static int ReadIndex1(XElement el, int defaultValue = 1)
-    {
-        var attr = el.Attribute("index")?.Value;
-        if (string.IsNullOrWhiteSpace(attr)) return defaultValue;
-        return int.TryParse(attr, out var i) && i > 0 ? i : defaultValue;
-    }
-
-    private string Tag_Star(XElement el, Context ctx)
-    {
-        var i = ReadIndex1(el, 1);
-        return ctx.Match.Star(i) ?? string.Empty;
-    }
-
-    private string Tag_ThatStar(XElement el, Context ctx)
-    {
-        var i = ReadIndex1(el, 1);
-        return ctx.Match.ThatStar(i) ?? string.Empty;
-    }
-
-    private string Tag_TopicStar(XElement el, Context ctx)
-    {
-        var i = ReadIndex1(el, 1);
-        return ctx.Match.TopicStar(i) ?? string.Empty;
     }
 
     private string Tag_Think(XElement el, Context ctx)
@@ -239,72 +292,81 @@ internal sealed class TemplateProcessor
 
     private string Tag_Set(XElement el, Context ctx)
     {
-        var name = el.Attribute("name")?.Value ?? string.Empty;
-        var value = EvalChildren(el, ctx);
+        string name = el.Attribute("name")?.Value ?? string.Empty;
+        string? value = EvalChildren(el, ctx);
 
-        if (string.IsNullOrWhiteSpace(name)) return value;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return value;
+        }
 
         if (name.Equals("topic", StringComparison.OrdinalIgnoreCase))
+        {
             ctx.Session.Topic = string.IsNullOrWhiteSpace(value) ? "*" : value.Trim();
+        }
         else
+        {
             ctx.Session.Predicates.Set(name, value ?? string.Empty);
+        }
 
         return value ?? string.Empty;
     }
 
-    private string Tag_Get(XElement el, Context ctx)
+    private string Tag_Bot(XElement el)
     {
-        var name = el.Attribute("name")?.Value ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        string name = el.Attribute("name")?.Value ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
 
-        if (name.Equals("topic", StringComparison.OrdinalIgnoreCase))
-            return ctx.Session.Topic;
-
-        return ctx.Session.Predicates.GetOrEmpty(name);
-    }
-
-    private string Tag_Bot(XElement el, Context ctx)
-    {
-        var name = el.Attribute("name")?.Value ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
         return _bot.Properties.GetOrEmpty(name);
     }
 
     private string Tag_Random(XElement el, Context ctx)
     {
-        var items = new List<string>();
-        foreach (var li in el.Elements())
+        List<string> items = [];
+        foreach (XElement li in el.Elements())
+        {
             if (li.Name.LocalName.Equals("li", StringComparison.OrdinalIgnoreCase))
+            {
                 items.Add(EvalChildren(li, ctx));
+            }
+        }
 
         // Drop empty results to avoid blank replies
-        var nonEmpty = items.FindAll(s => !string.IsNullOrWhiteSpace(s));
-        if (nonEmpty.Count == 0) return string.Empty;
+        List<string> nonEmpty = items.FindAll(s => !string.IsNullOrWhiteSpace(s));
+        if (nonEmpty.Count == 0)
+        {
+            return string.Empty;
+        }
 
-        var idx = _rng.Next(nonEmpty.Count);
+        int idx = _rng.Next(nonEmpty.Count);
         return nonEmpty[idx];
     }
 
     private string Tag_Condition(XElement e, Context ctx)
     {
         // If there are any <li> children, it's the LIST FORM, even if the parent has name="…"
-        var liElements = new List<XElement>();
-        foreach (var child in e.Elements())
+        List<XElement> liElements = [];
+        foreach (XElement child in e.Elements())
         {
             if (child.Name.LocalName.Equals("li", StringComparison.OrdinalIgnoreCase))
+            {
                 liElements.Add(child);
+            }
         }
 
         if (liElements.Count > 0)
         {
             // LIST FORM
-            var parentName = e.Attribute("name")?.Value; // may be null; used as default li name
+            string? parentName = e.Attribute("name")?.Value; // may be null; used as default li name
             XElement? defaultLi = null;
 
-            foreach (var li in liElements)
+            foreach (XElement li in liElements)
             {
-                var effName = li.Attribute("name")?.Value ?? parentName;   // inherit from parent if missing
-                var value = li.Attribute("value")?.Value;                // may be null
+                string? effName = li.Attribute("name")?.Value ?? parentName;   // inherit from parent if missing
+                string? value = li.Attribute("value")?.Value;                // may be null
 
                 // True default branch: neither name nor value on this li
                 if (string.IsNullOrEmpty(effName) && value is null)
@@ -313,7 +375,7 @@ internal sealed class TemplateProcessor
                     continue;
                 }
 
-                var cur = string.IsNullOrEmpty(effName)
+                string? cur = string.IsNullOrEmpty(effName)
                     ? string.Empty
                     : ctx.Session.Predicates.GetOrEmpty(effName);
 
@@ -321,7 +383,9 @@ internal sealed class TemplateProcessor
                 {
                     // "exists" branch: match if predicate is non-empty
                     if (!string.IsNullOrEmpty(cur))
+                    {
                         return EvalChildren(li, ctx);
+                    }
                 }
                 else
                 {
@@ -329,7 +393,9 @@ internal sealed class TemplateProcessor
                     if (value == "*")
                     {
                         if (!string.IsNullOrEmpty(cur))
+                        {
                             return EvalChildren(li, ctx);
+                        }
                     }
                     else if (string.Equals(cur, value, StringComparison.OrdinalIgnoreCase))
                     {
@@ -342,13 +408,15 @@ internal sealed class TemplateProcessor
         }
 
         // SINGLE FORM: <condition name="x" value="y">…</condition>
-        var nameAttr = e.Attribute("name")?.Value;
-        var valueAttr = e.Attribute("value")?.Value;
+        string? nameAttr = e.Attribute("name")?.Value;
+        string? valueAttr = e.Attribute("value")?.Value;
 
         if (string.IsNullOrEmpty(nameAttr) || valueAttr is null)
+        {
             return string.Empty; // malformed single-form; nothing to do
+        }
 
-        var current = ctx.Session.Predicates.GetOrEmpty(nameAttr);
+        string current = ctx.Session.Predicates.GetOrEmpty(nameAttr);
         return string.Equals(current, valueAttr, StringComparison.OrdinalIgnoreCase)
             ? EvalChildren(e, ctx)
             : string.Empty;
@@ -356,41 +424,47 @@ internal sealed class TemplateProcessor
 
     private string Tag_Uppercase(XElement el, Context ctx)
     {
-        var inner = EvalChildren(el, ctx);
+        string inner = EvalChildren(el, ctx);
         return inner.ToUpperInvariant();
     }
 
     private string Tag_Lowercase(XElement el, Context ctx)
     {
-        var inner = EvalChildren(el, ctx);
+        string? inner = EvalChildren(el, ctx);
         return inner.ToLowerInvariant();
     }
 
     private string Tag_Formal(XElement el, Context ctx)
     {
-        var inner = EvalChildren(el, ctx);
+        string inner = EvalChildren(el, ctx);
         return _pre.ToTitleCase(inner);
     }
 
     private string Tag_Sentence(XElement el, Context ctx)
     {
-        var inner = EvalChildren(el, ctx);
+        string? inner = EvalChildren(el, ctx);
         return _pre.ToSentenceCase(inner);
     }
 
     // -----------------------------
     // NEW: <learn/> (Part 9)
     // -----------------------------
-    private string Tag_Learn(XElement el, Context ctx)
+    private string Tag_Learn(XElement el)
     {
         // If learning is disabled, just ignore the block.
-        if (_learn is null) return string.Empty;
+        if (_learn is null)
+        {
+            return string.Empty;
+        }
 
         // Grab raw inner XML and wrap to ensure a single root for parsing.
-        var innerXml = GetInnerXml(el);
-        if (string.IsNullOrWhiteSpace(innerXml)) return string.Empty;
+        string innerXml = GetInnerXml(el);
+        if (string.IsNullOrWhiteSpace(innerXml))
+        {
+            return string.Empty;
+        }
 
-        var wrapped = $"<learnwrap>{innerXml}</learnwrap>";
+        string wrapped = $"<learnwrap>{innerXml}</learnwrap>";
         XDocument xdoc;
         try
         {
@@ -401,21 +475,23 @@ internal sealed class TemplateProcessor
             return string.Empty;
         }
 
-        var root = xdoc.Root!;
-        foreach (var node in root.Elements())
+        XElement root = xdoc.Root!;
+        foreach (XElement node in root.Elements())
         {
-            var local = node.Name.LocalName.ToLowerInvariant();
+            string local = node.Name.LocalName.ToLowerInvariant();
             if (local == "category")
             {
                 EmitLearnFromCategory(node, "*");
             }
             else if (local == "topic")
             {
-                var topicName = (node.Attribute("name")?.Value ?? "*").Trim();
-                foreach (var cat in node.Elements())
+                string topicName = (node.Attribute("name")?.Value ?? "*").Trim();
+                foreach (XElement cat in node.Elements())
                 {
                     if (cat.Name.LocalName.Equals("category", StringComparison.OrdinalIgnoreCase))
+                    {
                         EmitLearnFromCategory(cat, topicName);
+                    }
                 }
             }
         }
@@ -425,42 +501,42 @@ internal sealed class TemplateProcessor
 
         void EmitLearnFromCategory(XElement categoryEl, string topicWrapper)
         {
-            var patternText = (categoryEl.Element(XName.Get("pattern"))?.Value ?? string.Empty).Trim();
-            if (string.IsNullOrEmpty(patternText)) return; // skip malformed
+            string patternText = (categoryEl.Element(XName.Get("pattern"))?.Value ?? string.Empty).Trim();
+            if (string.IsNullOrEmpty(patternText))
+            {
+                return; // skip malformed
+            }
 
-            var thatText = (categoryEl.Element(XName.Get("that"))?.Value ?? string.Empty).Trim();
-            var templateEl = categoryEl.Element(XName.Get("template"));
-            if (templateEl is null) return; // skip malformed
+            string thatText = (categoryEl.Element(XName.Get("that"))?.Value ?? string.Empty).Trim();
+            XElement? templateEl = categoryEl.Element(XName.Get("template"));
+            if (templateEl is null)
+            {
+                return; // skip malformed
+            }
 
-            var templateXml = templateEl.ToString(SaveOptions.DisableFormatting);
-            var topicText = string.IsNullOrWhiteSpace(topicWrapper) ? "*" : topicWrapper;
+            string templateXml = templateEl.ToString(SaveOptions.DisableFormatting);
+            string topicText = string.IsNullOrWhiteSpace(topicWrapper) ? "*" : topicWrapper;
 
             // Normalize via PreProcessor (Program D style)
-            var normPattern = _pre.NormalizePattern(patternText);
-            var normThat = _pre.NormalizeThat(thatText);
-            var normTopic = _pre.NormalizeTopic(topicText);
+            string normPattern = _pre.NormalizePattern(patternText);
+            string normThat = _pre.NormalizeThat(thatText);
+            string normTopic = _pre.NormalizeTopic(topicText);
 
             // Emit to runtime
             _learn(normPattern, normThat, normTopic, templateXml, null);
         }
     }
 
-    private static string GetInnerXml(XElement el)
-    {
-        if (!el.HasElements && el.Value.Length == 0) return string.Empty;
-        return string.Concat(el.Nodes().Select(n => n.ToString(SaveOptions.DisableFormatting)));
-    }
-
     // -----------------------------
     // NEW: <date/> (Part 9)
     // -----------------------------
-    private string Tag_Date(XElement el, Context ctx)
+    private string Tag_Date(XElement el)
     {
-        var now = _nowProvider?.Invoke() ?? DateTime.Now;
-        var fmt = el.Attribute("format")?.Value;
+        DateTime now = _nowProvider?.Invoke() ?? DateTime.Now;
+        string? fmt = el.Attribute("format")?.Value;
 
         // Default format expected by tests
-        var format = string.IsNullOrWhiteSpace(fmt) ? "yyyy-MM-dd HH:mm" : fmt;
+        string format = string.IsNullOrWhiteSpace(fmt) ? "yyyy-MM-dd HH:mm" : fmt;
         try
         {
             return now.ToString(format, CultureInfo.InvariantCulture);

@@ -1,27 +1,22 @@
-﻿// =============================================================
-// Genova.Alice.Tests — Part 7 (Step 2: TDD)
-// Unit tests for PersonTransform (xUnit + FluentAssertions)
-// =============================================================
+﻿// This file is part of the Genova project licensed under the GNU General Public License v3.0.
+// See the LICENSE file in the project root for more information.
 
-using System.Collections.Generic;
 using FluentAssertions;
-using Xunit;
-using Genova.Alice;
 
-namespace Genova.Alice.Tests;
+namespace Genova.Alice.UnitTests;
 
-public class PersonTransformTests
+public class PersonTransform_Tests
 {
     private static SubstitutionTables Tables => SubstitutionTables.CreateClassicDefaults();
 
     [Fact]
     public void ApplyPerson_swaps_first_to_second_person_pronouns_and_verb()
     {
-        var t = Tables;
+        SubstitutionTables t = Tables;
 
         // Uppercase pipeline assumption (as in PreProcessor)
-        var input = "I AM SAD";
-        var result = PersonTransform.ApplyPerson(input, t.Person);
+        string input = "I AM SAD";
+        string result = PersonTransform.ApplyPerson(input, t.Person);
 
         result.Should().Be("YOU ARE SAD");
 
@@ -33,7 +28,7 @@ public class PersonTransformTests
     [Fact]
     public void ApplyPerson2_swaps_second_to_first_person_pronouns_and_verb()
     {
-        var t = Tables;
+        SubstitutionTables t = Tables;
 
         PersonTransform.ApplyPerson2("YOU ARE FUNNY", t.Person2).Should().Be("I AM FUNNY");
         PersonTransform.ApplyPerson2("YOUR PLAN IS YOURS", t.Person2).Should().Be("MY PLAN IS MINE");
@@ -45,7 +40,7 @@ public class PersonTransformTests
     [Fact]
     public void ApplyGender_swaps_masculine_and_feminine_terms()
     {
-        var t = Tables;
+        SubstitutionTables t = Tables;
 
         PersonTransform.ApplyGender("HE HELPED HER", t.Gender).Should().Be("SHE HELPED HIM");
         PersonTransform.ApplyGender("HIS IDEA WAS HERS", t.Gender).Should().Be("HER IDEA WAS HIS");
@@ -56,7 +51,7 @@ public class PersonTransformTests
     public void ApplyWordMap_prefers_exact_token_and_leaves_unknowns_untouched()
     {
         // Map where potential prefixes exist (YOUR vs YOURSELF)
-        var map = new Dictionary<string, string>
+        Dictionary<string, string> map = new ()
         {
             ["YOUR"] = "MY",
             ["YOURSELF"] = "MYSELF"
@@ -73,7 +68,7 @@ public class PersonTransformTests
     [Fact]
     public void ApplyWordMap_empty_map_returns_original()
     {
-        var empty = new Dictionary<string, string>();
+        Dictionary<string, string> empty = [];
         PersonTransform.ApplyWordMap("ANY TEXT HERE", empty).Should().Be("ANY TEXT HERE");
     }
 }
