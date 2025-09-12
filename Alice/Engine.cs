@@ -2,6 +2,7 @@
 // See the LICENSE file in the project root for more information.
 
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace Genova.Alice;
 
@@ -9,7 +10,7 @@ namespace Genova.Alice;
 /// Chat engine that orchestrates preprocessing, pattern matching, and template evaluation.
 /// Splits user input into sentences, matches each against the AIML graph, and renders replies.
 /// </summary>
-internal sealed class Engine
+internal sealed partial class Engine
 {
     /// <summary>
     /// Initializes a new instance of the <see cref="Engine"/> class and wires SRAI recursion.
@@ -50,6 +51,84 @@ internal sealed class Engine
     /// Gets the template processor used to evaluate AIML templates.
     /// </summary>
     internal TemplateProcessor Templates { get; }
+
+    /// <summary>
+    /// Normalizes spacing and punctuation in a rendered reply.
+    /// Collapses runs of whitespace to a single space, trims any leading/trailing space,
+    /// removes spaces immediately before punctuation, and deletes stray commas that appear
+    /// directly in front of terminal punctuation.
+    /// </summary>
+    /// <param name="text">
+    /// The raw text to normalize. If <c>null</c> or empty, the method returns an empty string.
+    /// </param>
+    /// <returns>
+    /// The normalized text with collapsed whitespace and tidied punctuation (culture-invariant).
+    /// </returns>
+    /// <remarks>
+    /// <para>This method performs the following steps, in order:</para>
+    /// <list type="bullet">
+    ///   <item><description>Collapses any sequence of Unicode whitespace to a single ASCII space (<c>' '</c>).</description></item>
+    ///   <item><description>Trims a single leading and/or trailing space that may result from the collapse pass.</description></item>
+    ///   <item><description>Removes spaces immediately before punctuation characters <c>, . ; : ! ?</c> (e.g., <c>"Hello ?"</c> → <c>"Hello?"</c>).</description></item>
+    ///   <item><description>Removes dangling commas that appear directly before terminal punctuation (e.g., <c>",?"</c> → <c>"?"</c>, <c>", ."</c> → <c>"."</c>).</description></item>
+    /// </list>
+    /// <para>The method does not alter letter casing or quote placement; it only adjusts spacing and
+    /// obvious punctuation artifacts commonly produced by template composition.</para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Spaces before punctuation removed
+    /// var s1 = CollapseWhitespace("He said , \"wow\"  !"); // "He said, \"wow\"!"
+    ///
+    /// // Dangling comma before question mark removed
+    /// var s2 = CollapseWhitespace("What makes you so sad,?"); // "What makes you so sad?"
+    /// </code>
+    /// </example>
+    internal static string CorrectPunctuation(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return string.Empty;
+        }
+
+        StringBuilder sb = new (text.Length);
+        bool inSpace = false;
+        foreach (char ch in text)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                if (!inSpace)
+                {
+                    sb.Append(' ');
+                    inSpace = true;
+                }
+            }
+            else
+            {
+                sb.Append(ch);
+                inSpace = false;
+            }
+        }
+
+        // Trim leading/trailing single space
+        if (sb.Length > 0 && sb[0] == ' ')
+        {
+            sb.Remove(0, 1);
+        }
+
+        if (sb.Length > 0 && sb[^1] == ' ')
+        {
+            sb.Remove(sb.Length - 1, 1);
+        }
+
+        // Remove spaces before punctuation: " ?" -> "?"
+        string collapsed = SpaceBeforePunct().Replace(sb.ToString(), "$1");
+
+        // Remove dangling commas before punctuation: ", ?" -> "?"
+        collapsed = DanglingCommaBeforePunct().Replace(collapsed, "$1");
+
+        return collapsed;
+    }
 
     /// <summary>
     /// Processes a user utterance end-to-end: splits into sentences, matches each,
@@ -99,9 +178,8 @@ internal sealed class Engine
         }
 
         string response = string.Join(" ", outputs);
-        response = CollapseWhitespace(response);
-        response = CorrectResponse(response);
-        return response;
+        response = CorrectPunctuation(response);
+        return response.Trim();
     }
 
     /// <summary>
@@ -143,60 +221,9 @@ internal sealed class Engine
         return reply ?? string.Empty;
     }
 
-    private static string CorrectResponse(string response)
-    {
-        if (string.IsNullOrWhiteSpace(response))
-        {
-            return string.Empty;
-        }
+    [GeneratedRegex(@"\s+([,.;:!?])", RegexOptions.Compiled)]
+    private static partial Regex SpaceBeforePunct();
 
-        while (response.EndsWith(" ?"))
-        {
-            response = string.Concat(response.AsSpan(0, response.Length - 2), "?");
-        }
-
-        return response;
-    }
-
-    // Inside Genova.Alice.Core.Engine
-    private static string CollapseWhitespace(string text)
-    {
-        if (string.IsNullOrEmpty(text))
-        {
-            return string.Empty;
-        }
-
-        StringBuilder sb = new (text.Length);
-        bool inSpace = false;
-
-        foreach (char ch in text)
-        {
-            if (char.IsWhiteSpace(ch))
-            {
-                if (!inSpace)
-                {
-                    sb.Append(' ');
-                    inSpace = true;
-                }
-            }
-            else
-            {
-                sb.Append(ch);
-                inSpace = false;
-            }
-        }
-
-        // Trim a single leading/trailing space if present
-        if (sb.Length > 0 && sb[0] == ' ')
-        {
-            sb.Remove(0, 1);
-        }
-
-        if (sb.Length > 0 && sb[^1] == ' ')
-        {
-            sb.Remove(sb.Length - 1, 1);
-        }
-
-        return sb.ToString();
-    }
+    [GeneratedRegex(@"\s*,\s*([!?.:;])", RegexOptions.Compiled)]
+    private static partial Regex DanglingCommaBeforePunct();
 }

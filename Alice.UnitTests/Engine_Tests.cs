@@ -123,4 +123,35 @@ public class Engine_Tests
         reply.Should().Be("Hi.");
         session.InputHistory.At(1).Should().Be(input);
     }
+
+
+    [Theory]
+    // Empty / whitespace-only
+    [InlineData("", "")]
+    [InlineData("   ", "")]
+    [InlineData("\t\r\n  \n", "")]
+
+    // Collapse runs, trim ends
+    [InlineData("Hello   world", "Hello world")]
+    [InlineData("  Hello   world  ", "Hello world")]
+    [InlineData("Line1\n\nLine2\t\tEnd", "Line1 Line2 End")]
+
+    // Remove spaces before punctuation ( ?, !, ., ,, :, ; )
+    [InlineData("Hello ?", "Hello?")]
+    [InlineData("Hi , there", "Hi, there")]
+    [InlineData("He said , \"wow\"  !", "He said, \"wow\"!")]
+
+    // Remove dangling commas directly before terminal punctuation
+    [InlineData("What makes you so sad,?", "What makes you so sad?")]
+    [InlineData("That’s interesting , .", "That’s interesting.")]
+    [InlineData("Yes, !", "Yes!")]
+
+    // Quotation + punctuation spacing
+    [InlineData("I said, \"\" .", "I said, \"\".")]
+    [InlineData("He replied , \"okay\" ?", "He replied, \"okay\"?")]
+
+    public void CorrectPunctuation_normalizes(string input, string expected)
+    {
+        Engine.CorrectPunctuation(input).Should().Be(expected);
+    }
 }

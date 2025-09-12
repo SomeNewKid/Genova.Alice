@@ -425,9 +425,22 @@ public class Alice_Tests
         reply.Should().NotContain("\"\"");
     }
 
+    [Fact]
+    public void I_feel_sad_reply_has_correct_punctuation()
+    {
+        Alice alice = new();
+        string reply = alice.GetResponse("I feel sad");
+        EnsureValidResponse(reply);
+        reply.Should().NotBe("What makes you so sad,?");
+    }
+
     private void EnsureValidResponse(string reply)
     {
         reply.Should().NotBeNullOrWhiteSpace();
         reply.Should().NotEndWith(" .");
+        reply.Should().NotEndWith(",.");
+        reply.Should().NotEndWith(", .");
+        reply.Should().NotEndWith(",?");
+        reply.Should().NotEndWith(", ?");
     }
 }
