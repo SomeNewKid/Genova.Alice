@@ -4168,7 +4168,7 @@
 <template><think><set name="gender">she</set></think> <srai>my name is noelle</srai></template>
 </category>
 <category><pattern>SAY WHAT</pattern>
-<template>I said, "<that index="1,1"/>" .</template>
+<template>I said, "<that index="1,1"/>".</template>
 </category>
 <category><pattern>DANIELLE</pattern>
 <that>WHAT CAN I CALL YOU</that>

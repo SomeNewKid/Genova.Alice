@@ -53,7 +53,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("Hello. What is your name?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
         response.Should().ContainAny("Hi", "Hello");      // first sentence
         response.Should().MatchRegex(@"(?i)\bALICE\b");   // second sentence
     }
@@ -77,7 +77,7 @@ public class Alice_Tests
             "I am fine, thank you.",
         ];
 
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
         response.Should().BeOneOf(expected);
     }
 
@@ -121,11 +121,11 @@ public class Alice_Tests
 
         // Alternate path to set the name (explicit CALL ME *)
         string setReply = alice.GetResponse("Call me Tom");
-        setReply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(setReply);
 
         // Now query it back
         string queryReply = alice.GetResponse("What is my name?");
-        queryReply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(queryReply);
         queryReply.Should().Be("You said your name is Tom?");
     }
 
@@ -135,10 +135,10 @@ public class Alice_Tests
         Alice alice = new ();
 
         string setReply = alice.GetResponse("My name is Bob");
-        setReply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(setReply);
 
         string queryReply = alice.GetResponse("What is my name?");
-        queryReply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(queryReply);
         queryReply.Should().Be("You said your name is Bob?");
     }
 
@@ -147,7 +147,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("What is your name?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
         // Many ALICE brains respond “ALICE” or “My name is ALICE.”
         response.Should().MatchRegex(@"(?i)\bALICE\b");
     }
@@ -157,7 +157,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("What's your name?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
         response.Should().MatchRegex(@"(?i)\bALICE\b");
     }
 
@@ -166,7 +166,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("What time is it?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
         // Expect at least some digits in the time string
         Regex.IsMatch(response, @"\d").Should().BeTrue();
     }
@@ -176,7 +176,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("What is the date?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
 
         // Expect at least some digits in the date string
         Regex.IsMatch(response, @"\d").Should().BeTrue();
@@ -187,7 +187,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string response = alice.GetResponse("Are you a computer?");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
 
         // Typically includes “computer” or an affirmative
         response.Should().MatchRegex(@"(?i)(computer|robot|chatbot|yes|I am)");
@@ -199,7 +199,7 @@ public class Alice_Tests
         Alice alice = new ();
         _ = alice.GetResponse("Hello"); // establish THAT
         string response = alice.GetResponse("asdjkl qweoiu zxcmn");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
     }
 
     [Fact]
@@ -207,7 +207,7 @@ public class Alice_Tests
     {
         Alice alice = new();
         string response = alice.GetResponse("asdjkl qweoiu zxcmn");
-        response.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(response);
     }
 
     [Fact]
@@ -242,11 +242,29 @@ public class Alice_Tests
     }
 
     [Fact]
+    public void I_like_pizza_repeated_always_returns_suitable_non_empty()
+    {
+        Alice alice = new();
+        for (int i = 0; i < 20; i++)
+        {
+            string response = alice.GetResponse("I like pizza.");
+
+            string[] expected =
+            [
+                "You like pizza.",
+                "What do you like about it?",
+                "What else do you like?",
+            ];
+            response.Should().BeOneOf(expected);
+        }
+    }
+
+    [Fact]
     public void Tell_me_something_interesting_is_non_empty()
     {
         Alice alice = new();
         string reply = alice.GetResponse("Tell me something interesting.");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- PATTERN: "*" catch-all (Ultimate Default Category) -----------------
@@ -258,7 +276,7 @@ public class Alice_Tests
         // First-turn gibberish. If your default uses a THAT-based reroute,
         // you can warm the THAT context with "Hello" first.
         string reply = alice.GetResponse("asdjkl qweoiu zxcmn");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- PATTERN: "X *" (left-anchored star) --------------------------------
@@ -268,7 +286,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string reply = alice.GetResponse("Tell me a story about pizza.");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- PATTERN: "X _ Y" (underscore = one-or-more) ------------------------
@@ -279,7 +297,7 @@ public class Alice_Tests
         Alice alice = new ();
         // Phrase that should match an underscore slot if your default.aiml uses it.
         string reply = alice.GetResponse("Explain quantum mechanics briefly");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <random><li>…</li>…</random> -----------------------------
@@ -296,7 +314,7 @@ public class Alice_Tests
             "Jo said I disassemble sentences too much and do not really understand the sentences.",
         ];
         // Non-empty is always required; if you have verified variants, assert OneOf:
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
         reply.Should().BeOneOf(expected); // enable once you confirm variants
     }
 
@@ -309,7 +327,7 @@ public class Alice_Tests
         // Many defaults SRAI to a canonical form; warm THAT then try a re-ask
         _ = alice.GetResponse("Hello");
         string reply = alice.GetResponse("Say that again?");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <sr/> shorthand (<srai><star/></srai>) -------------------
@@ -320,7 +338,7 @@ public class Alice_Tests
         Alice alice = new ();
         // Phrase that’s likely to match a default that uses <sr/> in its template:
         string reply = alice.GetResponse("Repeat after me hello world");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <condition> (list form) ----------------------------------
@@ -332,7 +350,7 @@ public class Alice_Tests
         // Set a predicate implicitly, then ask something that triggers a default condition.
         _ = alice.GetResponse("Call me Dana");
         string reply = alice.GetResponse("What is my name?");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
         // Optionally assert that the name appears (if your default funnels here):
         reply.Should().MatchRegex(@"(?i)\bDana\b");
     }
@@ -344,9 +362,9 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string reply1 = alice.GetResponse("Remember that the passphrase is swordfish");
-        reply1.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply1);
         string reply2 = alice.GetResponse("What is the passphrase?");
-        reply2.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply2);
         //reply2.Should().MatchRegex(@"(?i)\bswordfish\b"); // enable if applicable
     }
 
@@ -358,7 +376,7 @@ public class Alice_Tests
         Alice alice = new ();
         string reply = alice.GetResponse("Tell me about yourself");
         // If your bot.properties sets 'species' or 'order', some default answers include them.
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <person/>, <person2/>, <gender/> in defaults --------------
@@ -369,7 +387,7 @@ public class Alice_Tests
         Alice alice = new ();
         _ = alice.GetResponse("Hello"); // seed THAT if your default uses THAT-aware routes
         string reply = alice.GetResponse("I like pizza.");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
         // If you applied the lowercase refinement for raw star reflections:
         // reply.Should().Contain("pizza");
     }
@@ -381,7 +399,7 @@ public class Alice_Tests
     {
         Alice alice = new ();
         string reply = alice.GetResponse("format this sentence properly please");
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <id/> if present in your default.aiml --------------------
@@ -392,7 +410,7 @@ public class Alice_Tests
         Alice alice = new ();
         string reply = alice.GetResponse("What is my id?");
         // If your default.aiml uses <id/>, this will echo the session/user id (once Tag_Id is implemented).
-        reply.Should().NotBeNullOrWhiteSpace();
+        EnsureValidResponse(reply);
     }
 
     // --- TEMPLATE: <that/>, <thatstar/>, <topicstar/> re-ask pattern --------
@@ -403,6 +421,13 @@ public class Alice_Tests
         Alice alice = new ();
         _ = alice.GetResponse("Hello");             // establish THAT
         string reply = alice.GetResponse("Say what?"); // common default: <srai><that/> <topicstar/></srai>
+        EnsureValidResponse(reply);
+        reply.Should().NotContain("\"\"");
+    }
+
+    private void EnsureValidResponse(string reply)
+    {
         reply.Should().NotBeNullOrWhiteSpace();
+        reply.Should().NotEndWith(" .");
     }
 }

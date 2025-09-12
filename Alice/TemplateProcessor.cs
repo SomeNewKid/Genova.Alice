@@ -193,6 +193,49 @@ internal sealed class TemplateProcessor
         return string.Concat(el.Nodes().Select(n => n.ToString(SaveOptions.DisableFormatting)));
     }
 
+    private static string Tag_That(XElement el, Context ctx)
+    {
+        // Defaults per AIML spec: index="1,1" (most-recent reply, first sentence)
+        int replyIdx = 1;   // which prior reply (1 = most recent)
+        int sentIdx = 1;   // sentence within that reply (1-based)
+
+        string? idxAttr = el.Attribute("index")?.Value?.Trim();
+        if (!string.IsNullOrEmpty(idxAttr))
+        {
+            // Accept "n" or "m,n"
+            string[] parts = idxAttr.Split(',');
+            if (parts.Length == 1)
+            {
+                int.TryParse(parts[0].Trim(), out replyIdx);
+                sentIdx = 1;
+            }
+            else
+            {
+                int.TryParse(parts[0].Trim(), out replyIdx);
+                int.TryParse(parts[1].Trim(), out sentIdx);
+            }
+
+            replyIdx = replyIdx <= 0 ? 1 : replyIdx;
+            sentIdx = sentIdx <= 0 ? 1 : sentIdx;
+        }
+
+        // Get the m-th most-recent reply from the history.
+        var replyText = ctx.Session.ThatHistory.At(replyIdx);
+        if (string.IsNullOrEmpty(replyText))
+        {
+            return string.Empty;
+        }
+
+        // If a sentence index is requested (always is, default 1), split and select.
+        var sentences = ctx.Processor._pre.SplitSentences(replyText); // using the same splitter
+        if (sentences.Count == 0)
+        {
+            return replyText; // no split -> return the whole reply
+        }
+
+        return (sentIdx <= sentences.Count) ? sentences[sentIdx - 1] : string.Empty;
+    }
+
     // -----------------------------
     // Core evaluation
     // -----------------------------
@@ -233,6 +276,8 @@ internal sealed class TemplateProcessor
 
             "random" => Tag_Random(el, ctx),
             "condition" => Tag_Condition(el, ctx),
+
+            "that" => Tag_That(el, ctx),
 
             "uppercase" => Tag_Uppercase(el, ctx),
             "lowercase" => Tag_Lowercase(el, ctx),

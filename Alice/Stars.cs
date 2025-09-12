@@ -17,7 +17,9 @@ internal sealed class Stars
     /// <summary>
     /// Initializes a new instance of the <see cref="Stars"/> class.
     /// </summary>
-    internal Stars() { }
+    internal Stars()
+    {
+    }
 
     /// <summary>
     /// Gets the number of INPUT <c>star</c> captures.
