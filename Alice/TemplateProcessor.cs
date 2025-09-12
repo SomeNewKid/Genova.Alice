@@ -239,6 +239,10 @@ internal sealed class TemplateProcessor
             "formal" => Tag_Formal(el, ctx),
             "sentence" => Tag_Sentence(el, ctx),
 
+            "person" => Tag_Person(el, ctx),
+            "person2" => Tag_Person2(el, ctx),
+            "gender" => Tag_Gender(el, ctx),
+
             // NEW
             "learn" => Tag_Learn(el),
             "date" => Tag_Date(el),
@@ -525,6 +529,51 @@ internal sealed class TemplateProcessor
             // Emit to runtime
             _learn(normPattern, normThat, normTopic, templateXml, null);
         }
+    }
+
+    /// <summary>
+    /// Applies first→second person swaps to the element's content,
+    /// or to the first star capture when the element is empty.
+    /// If the element is empty (<person/>) and no substitution occurs
+    /// (e.g., the star is a noun like "PIZZA"), the reflected text is
+    /// returned in lowercase (e.g., "pizza") to improve readability.
+    /// </summary>
+    private string Tag_Person(XElement el, Context ctx)
+    {
+        string inner = el.IsEmpty ? ctx.Match.Star(1) : EvalChildren(el, ctx);
+
+        // Apply person transform first
+        string transformed = PersonTransform.ApplyPerson(inner, _bot.Substitutions.Person);
+
+        // Only lower-case when:
+        //  - the tag is empty (<person/> uses <star/>), and
+        //  - no substitution actually occurred (transformed == inner)
+        if (el.IsEmpty && string.Equals(transformed, inner, StringComparison.Ordinal))
+        {
+            return transformed.ToLowerInvariant();
+        }
+
+        return transformed;
+    }
+
+    /// <summary>
+    /// Applies second→first person swaps to the element's content,
+    /// or to the first star capture when the element is empty.
+    /// </summary>
+    private string Tag_Person2(XElement el, Context ctx)
+    {
+        string inner = el.IsEmpty ? ctx.Match.Star(1) : EvalChildren(el, ctx);
+        return PersonTransform.ApplyPerson2(inner, _bot.Substitutions.Person2);
+    }
+
+    /// <summary>
+    /// Applies gender swaps to the element's content,
+    /// or to the first star capture when the element is empty.
+    /// </summary>
+    private string Tag_Gender(XElement el, Context ctx)
+    {
+        string inner = el.IsEmpty ? ctx.Match.Star(1) : EvalChildren(el, ctx);
+        return PersonTransform.ApplyGender(inner, _bot.Substitutions.Gender);
     }
 
     // -----------------------------

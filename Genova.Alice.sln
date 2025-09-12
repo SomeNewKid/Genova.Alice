@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
-VisualStudioVersion = 17.13.35818.85 d17.13
+VisualStudioVersion = 17.13.35818.85
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alice", "Alice\Alice.csproj", "{85FB540B-C744-4E93-8A7E-B7B6430C8697}"
 EndProject
@@ -10,6 +10,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alice.QualityTests", "Alice.QualityTests\Alice.QualityTests.csproj", "{7175AC23-B68F-4A2E-9710-53F43D780D47}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alice.UnitTests", "Alice.UnitTests\Alice.UnitTests.csproj", "{3440B597-CDF3-4417-A46C-C58822DA6CBA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alice.Chatting", "Alice.Chatting\Alice.Chatting.csproj", "{F73DB2A9-43D4-493C-93D1-DA778CCC43B7}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{3440B597-CDF3-4417-A46C-C58822DA6CBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3440B597-CDF3-4417-A46C-C58822DA6CBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3440B597-CDF3-4417-A46C-C58822DA6CBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F73DB2A9-43D4-493C-93D1-DA778CCC43B7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F73DB2A9-43D4-493C-93D1-DA778CCC43B7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F73DB2A9-43D4-493C-93D1-DA778CCC43B7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F73DB2A9-43D4-493C-93D1-DA778CCC43B7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

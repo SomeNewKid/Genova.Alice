@@ -61,6 +61,7 @@ public sealed class Alice
             "humor.aiml",           // jokes & playful replies
             "computers.aiml",       // computer/tech small talk
             "continuation.aiml",    // “go on / tell me more” style prompts
+            "gossip.aiml",          // minimal, to resolve GOSSIP
             "date.aiml",            // date and time questions
             "default.aiml",         // catch-alls & safe fallbacks
             "updates.aiml",         // custom reductions

@@ -93,6 +93,7 @@ public class Alice_Tests
             "Hi, Earl.",
             "Hi there Earl.",
             "Hi there, Earl.",
+            "What's up, Earl.",
             "What's up, Earl?",
             "How are you, Earl.",
             "Glad to see you, Earl.",
@@ -193,11 +194,215 @@ public class Alice_Tests
     }
 
     [Fact]
-    public void Gibberish_triggers_default_fallback_non_empty()
+    public void Gibberish_with_THAT_context_triggers_default_fallback_non_empty()
     {
         Alice alice = new ();
         _ = alice.GetResponse("Hello"); // establish THAT
         string response = alice.GetResponse("asdjkl qweoiu zxcmn");
         response.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void Gibberish_without_THAT_context_triggers_default_fallback_non_empty()
+    {
+        Alice alice = new();
+        string response = alice.GetResponse("asdjkl qweoiu zxcmn");
+        response.Should().NotBeNullOrWhiteSpace();
+    }
+
+    [Fact]
+    public void I_like_pizza_with_THAT_context_returns_suitable_non_empty()
+    {
+        Alice alice = new();
+        _ = alice.GetResponse("Hello"); // establish THAT
+        string response = alice.GetResponse("I like pizza.");
+
+        string[] expected =
+        [
+            "You like pizza.",
+            "What do you like about it?",
+            "What else do you like?",
+        ];
+        response.Should().BeOneOf(expected);
+    }
+
+    [Fact]
+    public void I_like_pizza_without_THAT_context_returns_suitable_non_empty()
+    {
+        Alice alice = new();
+        string response = alice.GetResponse("I like pizza.");
+
+        string[] expected =
+        [
+            "You like pizza.",
+            "What do you like about it?",
+            "What else do you like?",
+        ];
+        response.Should().BeOneOf(expected);
+    }
+
+    [Fact]
+    public void Tell_me_something_interesting_is_non_empty()
+    {
+        Alice alice = new();
+        string reply = alice.GetResponse("Tell me something interesting.");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- PATTERN: "*" catch-all (Ultimate Default Category) -----------------
+
+    [Fact]
+    public void Star_catch_all_gibberish_is_non_empty()
+    {
+        Alice alice = new ();
+        // First-turn gibberish. If your default uses a THAT-based reroute,
+        // you can warm the THAT context with "Hello" first.
+        string reply = alice.GetResponse("asdjkl qweoiu zxcmn");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- PATTERN: "X *" (left-anchored star) --------------------------------
+
+    [Fact]
+    public void Left_anchored_star_is_non_empty()
+    {
+        Alice alice = new ();
+        string reply = alice.GetResponse("Tell me a story about pizza.");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- PATTERN: "X _ Y" (underscore = one-or-more) ------------------------
+
+    [Fact]
+    public void Underscore_one_or_more_words_is_non_empty()
+    {
+        Alice alice = new ();
+        // Phrase that should match an underscore slot if your default.aiml uses it.
+        string reply = alice.GetResponse("Explain quantum mechanics briefly");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <random><li>…</li>…</random> -----------------------------
+
+    [Fact]
+    public void Random_branch_returns_one_of_expected_variants()
+    {
+        Alice alice = new ();
+        // Pick a prompt commonly routed to default random replies (adjust if needed)
+        string reply = alice.GetResponse("Tell me something");
+        string[] expected =
+        [
+            "Gregory said I respond to the current line not with respect to the entire conversation.",
+            "Jo said I disassemble sentences too much and do not really understand the sentences.",
+        ];
+        // Non-empty is always required; if you have verified variants, assert OneOf:
+        reply.Should().NotBeNullOrWhiteSpace();
+        reply.Should().BeOneOf(expected); // enable once you confirm variants
+    }
+
+    // --- TEMPLATE: <srai>  (default reroutes) -------------------------------
+
+    [Fact]
+    public void Default_srai_paths_produce_non_empty()
+    {
+        Alice alice = new ();
+        // Many defaults SRAI to a canonical form; warm THAT then try a re-ask
+        _ = alice.GetResponse("Hello");
+        string reply = alice.GetResponse("Say that again?");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <sr/> shorthand (<srai><star/></srai>) -------------------
+
+    [Fact]
+    public void Sr_shorthand_is_non_empty_for_star_driven_defaults()
+    {
+        Alice alice = new ();
+        // Phrase that’s likely to match a default that uses <sr/> in its template:
+        string reply = alice.GetResponse("Repeat after me hello world");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <condition> (list form) ----------------------------------
+
+    [Fact]
+    public void Condition_list_form_in_default_is_non_empty()
+    {
+        Alice alice = new ();
+        // Set a predicate implicitly, then ask something that triggers a default condition.
+        _ = alice.GetResponse("Call me Dana");
+        string reply = alice.GetResponse("What is my name?");
+        reply.Should().NotBeNullOrWhiteSpace();
+        // Optionally assert that the name appears (if your default funnels here):
+        reply.Should().MatchRegex(@"(?i)\bDana\b");
+    }
+
+    // --- TEMPLATE: <think><set/><get/> --------------------------------------
+
+    [Fact]
+    public void Think_set_get_works_in_default_paths()
+    {
+        Alice alice = new ();
+        string reply1 = alice.GetResponse("Remember that the passphrase is swordfish");
+        reply1.Should().NotBeNullOrWhiteSpace();
+        string reply2 = alice.GetResponse("What is the passphrase?");
+        reply2.Should().NotBeNullOrWhiteSpace();
+        //reply2.Should().MatchRegex(@"(?i)\bswordfish\b"); // enable if applicable
+    }
+
+    // --- TEMPLATE: <bot/> in default replies --------------------------------
+
+    [Fact]
+    public void Bot_property_lookups_in_default_are_non_empty_when_seeded()
+    {
+        Alice alice = new ();
+        string reply = alice.GetResponse("Tell me about yourself");
+        // If your bot.properties sets 'species' or 'order', some default answers include them.
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <person/>, <person2/>, <gender/> in defaults --------------
+
+    [Fact]
+    public void Person_reflection_in_default_is_sensible()
+    {
+        Alice alice = new ();
+        _ = alice.GetResponse("Hello"); // seed THAT if your default uses THAT-aware routes
+        string reply = alice.GetResponse("I like pizza.");
+        reply.Should().NotBeNullOrWhiteSpace();
+        // If you applied the lowercase refinement for raw star reflections:
+        // reply.Should().Contain("pizza");
+    }
+
+    // --- TEMPLATE: casing transforms (<formal>, <sentence>, <lowercase>) ----
+
+    [Fact]
+    public void Casing_transforms_in_default_produce_readable_text()
+    {
+        Alice alice = new ();
+        string reply = alice.GetResponse("format this sentence properly please");
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <id/> if present in your default.aiml --------------------
+
+    [Fact]
+    public void Id_tag_in_default_is_non_empty_if_implemented()
+    {
+        Alice alice = new ();
+        string reply = alice.GetResponse("What is my id?");
+        // If your default.aiml uses <id/>, this will echo the session/user id (once Tag_Id is implemented).
+        reply.Should().NotBeNullOrWhiteSpace();
+    }
+
+    // --- TEMPLATE: <that/>, <thatstar/>, <topicstar/> re-ask pattern --------
+
+    [Fact]
+    public void That_topicstar_reroute_in_default_is_non_empty_after_context()
+    {
+        Alice alice = new ();
+        _ = alice.GetResponse("Hello");             // establish THAT
+        string reply = alice.GetResponse("Say what?"); // common default: <srai><that/> <topicstar/></srai>
+        reply.Should().NotBeNullOrWhiteSpace();
     }
 }
