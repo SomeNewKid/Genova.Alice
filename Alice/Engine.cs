@@ -55,8 +55,8 @@ internal sealed partial class Engine
     /// <summary>
     /// Normalizes spacing and punctuation in a rendered reply.
     /// Collapses runs of whitespace to a single space, trims any leading/trailing space,
-    /// removes spaces immediately before punctuation, and deletes stray commas that appear
-    /// directly in front of terminal punctuation.
+    /// removes spaces immediately before punctuation, deletes stray commas that appear
+    /// directly in front of terminal punctuation, and removes trailing commas.
     /// </summary>
     /// <param name="text">
     /// The raw text to normalize. If <c>null</c> or empty, the method returns an empty string.
@@ -71,6 +71,7 @@ internal sealed partial class Engine
     ///   <item><description>Trims a single leading and/or trailing space that may result from the collapse pass.</description></item>
     ///   <item><description>Removes spaces immediately before punctuation characters <c>, . ; : ! ?</c> (e.g., <c>"Hello ?"</c> → <c>"Hello?"</c>).</description></item>
     ///   <item><description>Removes dangling commas that appear directly before terminal punctuation (e.g., <c>",?"</c> → <c>"?"</c>, <c>", ."</c> → <c>"."</c>).</description></item>
+    ///   <item><description>Removes one or more trailing commas at the end of the text (e.g., <c>"Hi,"</c> → <c>"Hi"</c>, <c>"Hi,,"</c> → <c>"Hi"</c>).</description></item>
     /// </list>
     /// <para>The method does not alter letter casing or quote placement; it only adjusts spacing and
     /// obvious punctuation artifacts commonly produced by template composition.</para>
@@ -82,6 +83,9 @@ internal sealed partial class Engine
     ///
     /// // Dangling comma before question mark removed
     /// var s2 = CollapseWhitespace("What makes you so sad,?"); // "What makes you so sad?"
+    ///
+    /// // Trailing comma removed
+    /// var s3 = CollapseWhitespace("What makes you so sad,"); // "What makes you so sad"
     /// </code>
     /// </example>
     internal static string CorrectPunctuation(string text)
@@ -91,7 +95,7 @@ internal sealed partial class Engine
             return string.Empty;
         }
 
-        StringBuilder sb = new (text.Length);
+        StringBuilder sb = new(text.Length);
         bool inSpace = false;
         foreach (char ch in text)
         {
@@ -126,6 +130,9 @@ internal sealed partial class Engine
 
         // Remove dangling commas before punctuation: ", ?" -> "?"
         collapsed = DanglingCommaBeforePunct().Replace(collapsed, "$1");
+
+        // Remove trailing commas (one or more)
+        collapsed = TrailingCommas().Replace(collapsed, "");
 
         return collapsed;
     }
@@ -226,4 +233,7 @@ internal sealed partial class Engine
 
     [GeneratedRegex(@"\s*,\s*([!?.:;])", RegexOptions.Compiled)]
     private static partial Regex DanglingCommaBeforePunct();
+
+    [GeneratedRegex(@",+$")]
+    private static partial Regex TrailingCommas();
 }

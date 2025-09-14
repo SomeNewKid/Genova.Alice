@@ -150,6 +150,10 @@ public class Engine_Tests
     [InlineData("I said, \"\" .", "I said, \"\".")]
     [InlineData("He replied , \"okay\" ?", "He replied, \"okay\"?")]
 
+    // Remove trailing commas
+    [InlineData("What makes you so sad,", "What makes you so sad")]
+    [InlineData("What makes you so sad,,", "What makes you so sad")]
+
     public void CorrectPunctuation_normalizes(string input, string expected)
     {
         Engine.CorrectPunctuation(input).Should().Be(expected);

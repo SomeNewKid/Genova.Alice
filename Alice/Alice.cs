@@ -104,8 +104,7 @@ public sealed class Alice
     /// <returns>The chatbot's response for the given input.</returns>
     public string GetResponse(string input)
     {
-        string response = _engine.Respond(input, _session);
-        return response;
+        return _engine.Respond(input, _session);
     }
 
     private static string GetEmbeddedFilesFolder(Assembly assembly)
