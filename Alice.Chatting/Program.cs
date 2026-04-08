@@ -106,7 +106,7 @@ internal class Program
 
     private static string GetApiKey()
     {
-        string? apiKey = Environment.GetEnvironmentVariable("OPENAI_A11YGEN_API_KEY");
+        string? apiKey = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         if (string.IsNullOrEmpty(apiKey))
         {
             throw new InvalidOperationException("API key is not set in the environment variables.");
