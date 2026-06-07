@@ -71,19 +71,19 @@ public sealed class Alice
         foreach (var reductionFile in reductionFiles)
         {
             builder.LoadReduction(
-                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{reductionFile}") !,
+                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{reductionFile}")!,
                 reductionFile);
         }
 
         foreach (string coreFile in coreFiles)
         {
             builder.LoadCoreAiml(
-                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{coreFile}") !,
+                () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}{coreFile}")!,
                 coreFile);
         }
 
         builder.LoadBotProperties(
-            () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}bot.properties") !);
+            () => typeof(AimlLoader).Assembly.GetManifestResourceStream($"{embeddedFilesFolder}bot.properties")!);
 
         if (string.IsNullOrWhiteSpace(builder.Bot.Properties.GetOrEmpty("name")))
         {

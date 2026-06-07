@@ -117,7 +117,7 @@ internal sealed class AliceRuntimeBuilder
             }
 
             string key = t[..eq].Trim();
-            string val = t[(eq + 1) ..].Trim();
+            string val = t[(eq + 1)..].Trim();
 
             if (key.Length > 0)
             {

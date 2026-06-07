@@ -76,18 +76,18 @@ internal sealed class ReductionLoader
     /// Streams are not disposed by this method; the caller is responsible for their lifetimes.
     /// </remarks>
     /// <exception cref="ArgumentNullException">Thrown when <paramref name="sources"/> is <c>null</c>.</exception>
-    internal void LoadMany(IEnumerable<(Stream stream, string? name)> sources, bool normalize = true)
+    internal void LoadMany(IEnumerable<(Stream Stream, string? Name)> sources, bool normalize = true)
     {
         ArgumentNullException.ThrowIfNull(sources);
 
-        foreach ((Stream stream, string? name) in sources)
+        foreach (var source in sources)
         {
-            if (stream is null)
+            if (source.Stream is null)
             {
                 continue; // skip null entries defensively
             }
 
-            Load(stream, sourceName: name, normalize: normalize);
+            Load(source.Stream, sourceName: source.Name, normalize: normalize);
         }
     }
 

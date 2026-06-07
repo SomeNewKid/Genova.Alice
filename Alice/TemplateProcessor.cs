@@ -246,7 +246,7 @@ internal sealed class TemplateProcessor
             // Drop whitespace-only text nodes to avoid leaking indentation/newlines
             XText t => string.IsNullOrWhiteSpace(t.Value) ? " " : t.Value,
             XElement e => EvalElement(e, ctx),
-            _ => string.Empty
+            _ => string.Empty,
         };
     }
 
