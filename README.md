@@ -2,6 +2,12 @@
 
 A .NET 8 implementation of the classic ALICE AIML chatbot, with console and automated chat runners.
 
+> [!WARNING]
+> This is an experimental project and should not be considered production-ready. It exists to explore a small AI, ML, agent, or demo idea within the broader Genova ecosystem.
+
+> [!IMPORTANT]
+> A fresh public clone of this repository should not be expected to restore or build without additional Genova infrastructure. Many Genova dependencies are distributed through a private authenticated NuGet feed, and the public source does not include feed credentials or a complete public package graph.
+
 ## Installation
 
 ```bash
@@ -47,6 +53,10 @@ var reply = alice.GetResponse("Hello");
 * ALICE / AIML
 * OpenAI API
 
+## Third-Party Notices
+
+This project has direct runtime dependencies on third-party NuGet packages, including `Microsoft.Extensions.*` packages (MIT). See each package's NuGet license metadata for full license and notice terms.
+
 ## License
 
-GNU General Public License v3.0
+GNU General Public License v3.0. See the `LICENSE` file for details.
